@@ -1,0 +1,127 @@
+pigmap instructions
+
+Supported platforms are Linux and cygwin.  (But porting to Windows native or OSX should be easy.)
+
+Use supplied makefile to build with g++.  Depending on the system, it might need to be modified to
+link in some more libraries.  Dependencies are zlib, libpng, pthreads, and some very basic system
+stuff: getopt, mkdir, dirent.h.
+
+---------------------------------------------------------------------------------------------------
+
+Usage examples:
+
+full render:
+
+pigmap -B 6 -T 1 -Z 10 -i input/World1 -o output/World1 -g images -h 3
+
+...builds a map with parameters B = 6, T = 1, baseZoom = 10, reading world data from the path
+"input/World1", writing tiles out to the path "output/World1", reading terrain images from the path
+"images", and using 3 threads.
+
+incremental update:
+
+pigmap -i input/World1 -o output/World1 -c chunklist -h 3 -x
+
+...updates an existing map by redrawing any tiles touched by chunks listed in the file "chunklist",
+with the input and output dirs as before.  Map parameters are read from the existing map, and if the
+existing baseZoom is too small, it will be incremented.
+
+---------------------------------------------------------------------------------------------------
+
+Error messages are written to stderr; normal output to stdout.  There isn't much (read: any) of a progress
+indicator at the moment, but there are some statistics upon completion.
+
+---------------------------------------------------------------------------------------------------
+
+Explanation of command-line options:
+
+
+1. Params for both full renders and incremental updates:
+
+a. input path, output path (-i, -o)
+
+The chunk input path should be the top directory of the world data (i.e. where level.dat is).  The tile
+output path should be the top of the Google Maps directory structure (i.e. where base.png is).  Tile
+images will be written to the output path, along with a file "pigmap.params" which remembers what
+parameters the map was drawn with.  For incremental updates, the output path must exist already, and
+must contain the pigmap.params file.
+
+b. [optional] image path (-g)
+
+This is where pigmap expects to find either a copy of terrain.png, or a copy of blocks-B.png
+(substituting the actual numeric value of B; see below for definition of B), a pigmap-generated file
+that contains the isometric renderings of each block.  The default image path is ".".  Each
+blocks-B.png comes with a corresponding blocks-B.version, which remembers how many block images are
+stored in blocks-B.png.  (As more blocks are added to the game, the version will change.)
+
+The selection of block images works thusly:
+
+-If blocks-B.png does not exist, then terrain.png will be used to create it.
+-If blocks-B.png exists but has an old version, terrain.png will be used to fill in any missing
+  (i.e. new) blocks, but the existing portions of blocks-B.png will be preserved.
+-If blocks-B.png exists and is up-to-date, its block images will be used.
+
+This means that pigmap will need terrain.png the first time it runs, so it can generate blocks-B.png;
+subsequent runs will use the existing blocks-B.png, which can be manually edited if insufficiently
+pretty, or for special effects, etc.
+
+c. [optional] number of threads (-h)
+
+Defaults to 1.  Each thread requires around 250-300 MB of RAM (they work in different areas of the
+map and keep separate caches of chunk data).  Returns from extra threads may diminish quickly as the
+disk becomes a bottleneck.
+
+
+2. Params for full renders only:
+
+a. map parameters B, T, [optional] baseZoom (-B, -T, -Z):
+
+B is an integer >= 2 which controls the size (in pixels) of the blocks in the base zoom level.  The
+map projection lays out blocks on a hexagonal grid generated from the distances [+/-2B, +/-B] and
+[0, +/-2B], and each individual block's bounding box is 4B x 4B.
+
+T is the tile multiplier, an integer >= 1 which controls how many chunks wide a tile is.
+
+The size of each generated tile is 64BT x 64BT.
+
+(To match Minecraft Overviewer's base zoom level, use B=6 and T=1, for a tile size of 384 x 384.
+To match its second-highest zoom, use B=3 and T=2.)
+
+baseZoom is the Google Maps zoom level that the base tiles should be placed on.  This is important
+because Google Maps allows only 2^Z by 2^Z tiles for each zoom level Z; if baseZoom is not high enough,
+some tiles will not fit on the Google Map.  (Out-of-bounds tiles will be noticed at the start of a render,
+and the render aborted.)
+
+
+3. Params for incremental updates only:
+
+a. chunklist file (-c)
+
+The name of a text file containing the filenames of chunks that should be updated, one per line.
+Supplied filenames can have a relative or absolute path or can just be the file name; only the name
+will be examined.
+
+b. [optional] expand map if necessary (-x)
+
+This is useful for frequently-updated maps: eventually, as the world expands outwards, it will become
+too large for the current baseZoom, and an incremental update will fail.  If -x has been passed, then
+if an incremental update fails due to out-of-bounds tiles, the map's baseZoom will be increased by
+1, and the update retried.  (The baseZoom increase is *not* undone if the second attempt also fails.)
+
+Note that increasing a map's baseZoom is quick: all the tiles are simply moved one level deeper in
+the hierarchy, and the top two zoom levels redrawn.
+
+---------------------------------------------------------------------------------------------------
+
+What happens in a full render: the world data is scanned, and every chunk that exists on disk is noted.
+All tiles that include any chunks are rendered and saved; any tiles that might exist already in the
+output path are overwritten.
+
+What happens in an incremental update: the chunklist is read and its chunks are considered "required";
+the world data is not scanned.  (However, the input path must still contain the non-required chunks;
+that is, you can't just use a partial copy of a world.  This is because each tile touches multiple
+chunks; to render a required chunk, data from its non-required neighbors may be necessary.)  All tiles
+that include required chunks are rendered and saved.  Base tiles that exist already in the output path
+are overwritten, but those at lower zoom levels are merely modified--only the changed portions
+are redrawn.
+
