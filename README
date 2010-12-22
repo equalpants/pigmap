@@ -1,4 +1,23 @@
-pigmap instructions
+pigmap is a Minecraft map renderer, designed to be fast enough for very large worlds (like
+the Aporkalypse Now server, hence the name).  It was inspired by Minecraft Overviewer and does
+essentially the same thing, just faster and with fewer fancy options.  Features include:
+
+-isometric projection; level of detail on max zoom is user-settable
+-Google Maps tileset output
+-custom tilesets (supply your own terrain.png)
+-ability to manually edit the isometric block images generated from terrain.png,
+  for further beautification
+-incremental map updates, but you must supply your own list of modified chunks (most
+  likely via rsync or something similar)
+-multithreading
+
+pigmap is free under the GPL (please see the file COPYING).  I probably won't add too many
+more features beyond whatever the Aporkalypse might need in the future, but hopefully it will
+be useful to someone.
+
+Michael J. Nelson, mike@thinkingpart.com ("equalpants" in Minecraft)
+
+---------------------------------------------------------------------------------------------------
 
 Supported platforms are Linux and cygwin.  (But porting to Windows native or OSX should be easy.)
 
