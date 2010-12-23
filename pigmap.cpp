@@ -38,6 +38,7 @@
 #include <memory>
 #include <limits>
 #include <fstream>
+#include <sstream>
 #include <time.h>
 #include <pthread.h>
 #include <unistd.h>
@@ -355,7 +356,28 @@ bool expandMap(const string& outputpath)
 	return true;
 }
 
-bool performRender(const string& inputpath, const string& outputpath, const string& imgpath, const MapParams& mp, const string& chunklist, int threads, int testworldsize, bool expand)
+void writeHTML(const RenderJob& rj, const string& htmlpath)
+{
+	string templatePath = htmlpath + "/template.html";
+	stringbuf strbuf;
+	ifstream infile(templatePath.c_str());
+	infile.get(strbuf, 0);  // get entire file (unless it happens to have a '\0' in it)
+	if (infile.fail())
+		return;
+	string templateText = strbuf.str();
+	if (!replace(templateText, "{tileSize}", tostring(rj.mp.tileSize())) ||
+	    !replace(templateText, "{B}", tostring(rj.mp.B)) ||
+	    !replace(templateText, "{T}", tostring(rj.mp.T)) ||
+	    !replace(templateText, "{baseZoom}", tostring(rj.mp.baseZoom)))
+		return;
+	string htmlOutPath = rj.outputpath + "/pigmap-default.html";
+	ofstream outfile(htmlOutPath.c_str());
+	outfile << templateText;
+
+	copyFile(htmlpath + "/style.css", rj.outputpath + "/style.css");
+}
+
+bool performRender(const string& inputpath, const string& outputpath, const string& imgpath, const MapParams& mp, const string& chunklist, int threads, int testworldsize, bool expand, const string& htmlpath)
 {
 	time_t tstart = time(NULL);
 
@@ -432,9 +454,12 @@ bool performRender(const string& inputpath, const string& outputpath, const stri
 			cerr << "required tile " << it.current.toTileIdx().toFilePath(rj.mp) << " was somehow not drawn!" << endl;
 	}
 
-	// write map params
+	// write map params, HTML
 	if (!rj.testmode)
-		rj.mp.writeFile(outputpath);
+	{
+		rj.mp.writeFile(rj.outputpath);
+		writeHTML(rj, htmlpath);
+	}
 
 	// done; print stats
 	time_t tfinish = time(NULL);
@@ -694,7 +719,7 @@ void testReqTileCount(const string& inputpath)
 
 //-------------------------------------------------------------------------------------------------------------------
 
-bool validateParamsFull(const string& inputpath, const string& outputpath, const string& imgpath, const MapParams& mp, int threads, const string& chunklist, bool expand)
+bool validateParamsFull(const string& inputpath, const string& outputpath, const string& imgpath, const MapParams& mp, int threads, const string& chunklist, bool expand, const string& htmlpath)
 {
 	// -c and -x are not allowed for full renders
 	if (!chunklist.empty() || expand)
@@ -737,12 +762,17 @@ bool validateParamsFull(const string& inputpath, const string& outputpath, const
 		cerr << "must provide non-empty image path, or omit -g to use \".\"" << endl;
 		return false;
 	}
+	if (htmlpath.empty())
+	{
+		cerr << "must provide non-empty HTML path, or omit -m to use \".\"" << endl;
+		return false;
+	}
 
 	return true;
 }
 
 // also sets MapParams to values from existing map
-bool validateParamsIncremental(const string& inputpath, const string& outputpath, const string& imgpath, MapParams& mp, int threads, const string& chunklist, bool expand)
+bool validateParamsIncremental(const string& inputpath, const string& outputpath, const string& imgpath, MapParams& mp, int threads, const string& chunklist, bool expand, const string& htmlpath)
 {
 	// -B, -T, -Z are not allowed
 	if (mp.B != -1 || mp.T != -1 || mp.baseZoom != -1)
@@ -760,6 +790,11 @@ bool validateParamsIncremental(const string& inputpath, const string& outputpath
 	if (imgpath.empty())
 	{
 		cerr << "must provide non-empty image path, or omit -g to use \".\"" << endl;
+		return false;
+	}
+	if (htmlpath.empty())
+	{
+		cerr << "must provide non-empty HTML path, or omit -m to use \".\"" << endl;
 		return false;
 	}
 
@@ -781,12 +816,12 @@ bool validateParamsIncremental(const string& inputpath, const string& outputpath
 	return true;
 }
 
-bool validateParamsTest(const string& inputpath, const string& outputpath, const string& imgpath, const MapParams& mp, int threads, const string& chunklist, bool expand, int testworldsize)
+bool validateParamsTest(const string& inputpath, const string& outputpath, const string& imgpath, const MapParams& mp, int threads, const string& chunklist, bool expand, const string& htmlpath, int testworldsize)
 {
-	// -i, -o, -c, -x are not allowed
-	if (!inputpath.empty() || !outputpath.empty() || !chunklist.empty() || expand)
+	// -i, -o, -c, -x, -m are not allowed
+	if (!inputpath.empty() || !outputpath.empty() || !chunklist.empty() || expand || htmlpath != ".")
 	{
-		cerr << "-i, -o, -c, -x not allowed for test worlds" << endl;
+		cerr << "-i, -o, -c, -x, -m not allowed for test worlds" << endl;
 		return false;
 	}
 
@@ -845,14 +880,14 @@ int main(int argc, char **argv)
 	//testTileIdxs();
 	//testReqTileCount(inputpath);
 
-	string inputpath, outputpath, imgpath = ".", chunklist, expandpath;
+	string inputpath, outputpath, imgpath = ".", chunklist, htmlpath = ".";
 	MapParams mp(-1,-1,-1);
 	int threads = 1;
 	int testworldsize = -1;
 	bool expand = false;
 
 	int c;
-	while ((c = getopt(argc, argv, "i:o:g:c:B:T:Z:h:w:x")) != -1)
+	while ((c = getopt(argc, argv, "i:o:g:c:B:T:Z:h:w:xm:")) != -1)
 	{
 		switch (c)
 		{
@@ -883,6 +918,9 @@ int main(int argc, char **argv)
 			case 'x':
 				expand = true;
 				break;
+			case 'm':
+				htmlpath = optarg;
+				break;
 			case 'w':
 				testworldsize = atoi(optarg);
 				break;
@@ -897,21 +935,21 @@ int main(int argc, char **argv)
 
 	if (testworldsize != -1)
 	{
-		if (!validateParamsTest(inputpath, outputpath, imgpath, mp, threads, chunklist, expand, testworldsize))
+		if (!validateParamsTest(inputpath, outputpath, imgpath, mp, threads, chunklist, expand, htmlpath, testworldsize))
 			return 1;
 	}
 	else if (chunklist.empty())
 	{
-		if (!validateParamsFull(inputpath, outputpath, imgpath, mp, threads, chunklist, expand))
+		if (!validateParamsFull(inputpath, outputpath, imgpath, mp, threads, chunklist, expand, htmlpath))
 			return 1;
 	}
 	else
 	{
-		if (!validateParamsIncremental(inputpath, outputpath, imgpath, mp, threads, chunklist, expand))
+		if (!validateParamsIncremental(inputpath, outputpath, imgpath, mp, threads, chunklist, expand, htmlpath))
 			return 1;
 	}
 
-	if (!performRender(inputpath, outputpath, imgpath, mp, chunklist, threads, testworldsize, expand))
+	if (!performRender(inputpath, outputpath, imgpath, mp, chunklist, threads, testworldsize, expand, htmlpath))
 		return 1;
 
 	return 0;

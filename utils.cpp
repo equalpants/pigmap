@@ -20,6 +20,7 @@
 #include <errno.h>
 #include <algorithm>
 #include <sstream>
+#include <fstream>
 #include <iostream>
 #include <sys/stat.h>
 #include <stdio.h>
@@ -49,6 +50,13 @@ void renameFile(const string& oldpath, const string& newpath)
 	if (oldpath.empty() || newpath.empty())
 		return;
 	rename(oldpath.c_str(), newpath.c_str());
+}
+
+void copyFile(const string& oldpath, const string& newpath)
+{
+	ifstream infile(oldpath.c_str());
+	ofstream outfile(newpath.c_str());
+	outfile << infile.rdbuf();
 }
 
 
@@ -270,6 +278,18 @@ string tostring(int i)
 	return ss.str();
 }
 
+bool replace(std::string& text, const std::string& oldstr, const std::string& newstr)
+{
+	string::size_type pos = text.find(oldstr);
+	if (pos == string::npos)
+		return false;
+	while (pos != string::npos)
+	{
+		text.replace(pos, oldstr.size(), newstr);
+		pos = text.find(oldstr, pos + 1);
+	}
+	return true;
+}
 
 
 
