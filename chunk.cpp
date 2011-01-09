@@ -270,7 +270,7 @@ bool ChunkData::loadFromFile(const vector<uint8_t>& filebuf)
 	for (vector<uint8_t>::const_iterator it = filebuf.begin(); it != filebuf.end(); it++)
 	{
 		if (*it != 7)
-			it++;
+			continue;
 		if (!foundIDs && it + 13 + 32768 <= filebuf.end() && equal(it, it + 13, idsTag))
 		{
 			copy(it + 13, it + 13 + 32768, blockIDs);
@@ -361,14 +361,21 @@ ChunkData* ChunkCache::getData(const PosChunkIdx& ci)
 		return &blankdata;
 	}
 
-	// read was successful; evict current tenant of this chunk's slot, if there is one
-	stats.read++;
+	// gzip read was successful; evict current tenant of this chunk's slot, if there is one
 	if (entries[e].ci.valid())
 		chunktable.setDiskState(entries[e].ci, ChunkSet::CHUNK_UNKNOWN);
-	// ...and put this chunk's data into the slot
-	chunktable.setDiskState(ci, ChunkSet::CHUNK_CACHED);
+	// ...and put this chunk's data into the slot, assuming the data can actually be parsed
 	entries[e].ci = ci;
-	entries[e].data.loadFromFile(readbuf);
+	if (entries[e].data.loadFromFile(readbuf))
+	{
+		chunktable.setDiskState(ci, ChunkSet::CHUNK_CACHED);
+		stats.read++;
+	}
+	else
+	{
+		chunktable.setDiskState(ci, ChunkSet::CHUNK_CORRUPTED);
+		stats.corrupt++;
+	}
 	return &entries[e].data;
 }
 
