@@ -23,6 +23,7 @@
 //   -have signs actually face correct directions
 //   -things that have no images yet: fire, levers, buttons
 //   -edge shadows on vertical edges, too?
+//   -proper redstone wire directions
 // -premultiply block image alphas?
 // -dump list of corrupted chunks at end, so they can be retried later
 // -keep some space around for PNG row pointers instead of allocating every time

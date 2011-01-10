@@ -66,8 +66,8 @@ bool makeAllChunksRequired(const string& topdir, ChunkTable& chunktable, TileTab
 					}
 					else
 					{
-						cerr << "chunk table too small!  can't fit chunk [" << ci.x << "," << ci.z << "]" << endl;
-						return false;
+						cerr << "ignoring extremely-distant chunk " << ci.toFileName() << " (world may be corrupt)" << endl;
+						continue;
 					}
 					// get the tiles it touches and mark them required
 					vector<TileIdx> tiles = ci.getTiles(mp);
@@ -79,8 +79,9 @@ bool makeAllChunksRequired(const string& topdir, ChunkTable& chunktable, TileTab
 							tiletable.setRequired(pti);
 						else
 						{
-							cerr << "tile table too small!  can't fit tile [" << tile->x << "," << tile->y << "]" << endl;
-							return false;
+							cerr << "ignoring extremely-distant tile [" << tile->x << "," << tile->y << "]" << endl;
+							cerr << "(world may be corrupt; is chunk " << ci.toFileName() << " supposed to exist?)" << endl;
+							continue;
 						}
 						// now see if the tile fits on the Google map
 						if (!tile->valid(mp))
@@ -134,8 +135,8 @@ int readChunklist(const string& chunklist, ChunkTable& chunktable, TileTable& ti
 			}
 			else
 			{
-				cerr << "chunk table too small!  can't fit chunk [" << ci.x << "," << ci.z << "]" << endl;
-				return -2;
+				cerr << "ignoring extremely-distant chunk " << ci.toFileName() << " (world may be corrupt)" << endl;
+				continue;
 			}
 			vector<TileIdx> tiles = ci.getTiles(mp);
 			for (vector<TileIdx>::const_iterator tile = tiles.begin(); tile != tiles.end(); tile++)
@@ -145,8 +146,9 @@ int readChunklist(const string& chunklist, ChunkTable& chunktable, TileTable& ti
 					tiletable.setRequired(pti);
 				else
 				{
-					cerr << "tile table too small!  can't fit tile [" << tile->x << "," << tile->y << "]" << endl;
-					return -2;
+					cerr << "ignoring extremely-distant tile [" << tile->x << "," << tile->y << "]" << endl;
+					cerr << "(world may be corrupt; is chunk " << ci.toFileName() << " supposed to exist?)" << endl;
+					continue;
 				}
 				if (!tile->valid(mp))
 				{
