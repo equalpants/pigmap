@@ -99,11 +99,12 @@ bool BlockImages::create(int B, const string& imgpath)
 	else
 		cerr << blocksfile << " not found (or failed to read as PNG); will try to build from terrain.png" << endl;
 
-	// build blocks-B.png from terrain.png
+	// build blocks-B.png from terrain.png and fire.png
 	string terrainfile = imgpath + "/terrain.png";
-	if (!construct(B, terrainfile))
+	string firefile = imgpath + "/fire.png";
+	if (!construct(B, terrainfile, firefile))
 	{
-		cerr << "couldn't find terrain.png" << endl;
+		cerr << "couldn't find terrain.png and/or fire.png" << endl;
 		return false;
 	}
 
@@ -411,18 +412,19 @@ void drawItemBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage
 	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
 	     dstit(drect.x + B, drect.y + B*3/2, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
-		dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+		blend(dest(dstit.x, dstit.y), tiles(srcit.x, srcit.y));
 	}
 	// N/S face starting at [B,0.5B]
 	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
 	     dstit(drect.x + B, drect.y + B/2, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
-		dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+		blend(dest(dstit.x, dstit.y), tiles(srcit.x, srcit.y));
 	}
 }
 
 // draw a tile on a single upright face
 // 0 = S, 1 = N, 2 = W, 3 = E
+// ...handles transparency
 void drawSingleFaceBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int face, int B)
 {
 	int tilesize = 2*B;
@@ -454,17 +456,20 @@ void drawSingleFaceBlockImage(RGBAImage& dest, const ImageRect& drect, const RGB
 	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
 	     dstit(drect.x + xoff, drect.y + yoff, deltaY, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
-		dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+		blend(dest(dstit.x, dstit.y), tiles(srcit.x, srcit.y));
 	}
 }
 
 // draw part of a tile on a single upright face
 // 0 = S, 1 = N, 2 = W, 3 = E
-void drawPartialSingleFaceBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int face, int B, double fstart, double fend)
+// ...handles transparency
+void drawPartialSingleFaceBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int face, int B, double fstartv, double fendv, double fstarth, double fendh)
 {
 	int tilesize = 2*B;
-	int startcutoff = max(0, min(tilesize - 1, (int)(fstart * tilesize)));
-	int endcutoff = max(0, min(tilesize - 1, (int)(fend * tilesize)));
+	int vstartcutoff = max(0, min(tilesize, (int)(fstartv * tilesize)));
+	int vendcutoff = max(0, min(tilesize, (int)(fendv * tilesize)));
+	int hstartcutoff = max(0, min(tilesize, (int)(fstarth * tilesize)));
+	int hendcutoff = max(0, min(tilesize, (int)(fendh * tilesize)));
 	int xoff, yoff, deltaY;
 	if (face == 0)
 	{
@@ -493,8 +498,9 @@ void drawPartialSingleFaceBlockImage(RGBAImage& dest, const ImageRect& drect, co
 	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
 	     dstit(drect.x + xoff, drect.y + yoff, deltaY, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
-		if (dstit.pos % tilesize >= startcutoff && dstit.pos % tilesize < endcutoff)
-			dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+		if (dstit.pos % tilesize >= vstartcutoff && dstit.pos % tilesize < vendcutoff &&
+		    dstit.pos / tilesize >= hstartcutoff && dstit.pos / tilesize < hendcutoff)
+			blend(dest(dstit.x, dstit.y), tiles(srcit.x, srcit.y));
 	}
 }
 
@@ -507,6 +513,47 @@ void drawFloorBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImag
 	for (RotatedFaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, rot, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+	}
+}
+
+// draw part of a single tile on the floor
+void drawPartialFloorBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B, double fstartv, double fendv, double fstarth, double fendh)
+{
+	int tilesize = 2*B;
+	int vstartcutoff = max(0, min(tilesize, (int)(fstartv * tilesize)));
+	int vendcutoff = max(0, min(tilesize, (int)(fendv * tilesize)));
+	int hstartcutoff = max(0, min(tilesize, (int)(fstarth * tilesize)));
+	int hendcutoff = max(0, min(tilesize, (int)(fendh * tilesize)));
+	TopFaceIterator dstit(drect.x + 2*B-1, drect.y + 2*B, tilesize);
+	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	{
+		if (srcit.pos % tilesize >= vstartcutoff && srcit.pos % tilesize < vendcutoff &&
+		    srcit.pos / tilesize >= hstartcutoff && srcit.pos / tilesize < hendcutoff)
+			dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+	}
+}
+
+// draw a single tile on the floor, possibly with rotation, angled upwards
+// rot: 0 = top of tile is on S side; 1 = W, 2 = N, 3 = E
+// up: 0 = S side of tile is highest; 1 = W, 2 = N, 3 = E
+void drawAngledFloorBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int rot, int up, int B)
+{
+	int tilesize = 2*B;
+	TopFaceIterator dstit(drect.x + 2*B-1, drect.y + 2*B, tilesize);
+	for (RotatedFaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, rot, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	{
+		int yoff = 0;
+		int row = srcit.pos % tilesize, col = srcit.pos / tilesize;
+		if (up == 0)
+			yoff = tilesize - 1 - row;
+		else if (up == 1)
+			yoff = col;
+		else if (up == 2)
+			yoff = row;
+		else if (up == 3)
+			yoff = tilesize - 1 - col;
+		blend(dest(dstit.x, dstit.y - yoff), tiles(srcit.x, srcit.y));
+		blend(dest(dstit.x, dstit.y - yoff + 1), tiles(srcit.x, srcit.y));
 	}
 }
 
@@ -883,11 +930,37 @@ void drawSign(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, i
 	}
 }
 
+// draw crappy wall lever
+void drawWallLever(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int face, int B)
+{
+	drawPartialSingleFaceBlockImage(dest, drect, tiles, 16, face, B, 0.5, 1, 0.35, 0.65);
+	drawSingleFaceBlockImage(dest, drect, tiles, 96, face, B);
+}
+
+void drawFloorLeverNS(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int B)
+{
+	drawPartialFloorBlockImage(dest, drect, tiles, 16, B, 0.25, 0.75, 0.35, 0.65);
+	drawItemBlockImage(dest, drect, tiles, 96, B);
+}
+
+void drawFloorLeverEW(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int B)
+{
+	drawPartialFloorBlockImage(dest, drect, tiles, 16, B, 0.35, 0.65, 0.25, 0.75);
+	drawItemBlockImage(dest, drect, tiles, 96, B);
+}
+
+void drawFire(RGBAImage& dest, const ImageRect& drect, const RGBAImage& firetile, int B)
+{
+	drawSingleFaceBlockImage(dest, drect, firetile, 0, 0, B);
+	drawSingleFaceBlockImage(dest, drect, firetile, 0, 3, B);
+	drawSingleFaceBlockImage(dest, drect, firetile, 0, 1, B);
+	drawSingleFaceBlockImage(dest, drect, firetile, 0, 2, B);
+}
 
 
 
 
-const int BlockImages::NUMIMAGES = 183;
+const int BlockImages::NUMIMAGES = 206;
 
 int offsetIdx(uint8_t blockID, uint8_t blockData)
 {
@@ -968,7 +1041,7 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(50, 2)] = 45;
 	blockOffsets[offsetIdx(50, 3)] = 46;
 	blockOffsets[offsetIdx(50, 4)] = 47;
-	setOffsetsForID(51, 48, *this);
+	setOffsetsForID(51, 189, *this);
 	setOffsetsForID(52, 49, *this);
 	setOffsetsForID(53, 50, *this);
 	blockOffsets[offsetIdx(53, 1)] = 51;
@@ -988,14 +1061,14 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(59, 1)] = 65;
 	blockOffsets[offsetIdx(59, 0)] = 66;
 	setOffsetsForID(60, 67, *this);
-	setOffsetsForID(61, 68, *this);
-	blockOffsets[offsetIdx(61, 2)] = 150;
-	blockOffsets[offsetIdx(61, 4)] = 149;
-	blockOffsets[offsetIdx(61, 5)] = 150;
-	setOffsetsForID(62, 69, *this);
-	blockOffsets[offsetIdx(62, 2)] = 152;
-	blockOffsets[offsetIdx(62, 4)] = 151;
-	blockOffsets[offsetIdx(62, 5)] = 152;
+	setOffsetsForID(61, 183, *this);
+	blockOffsets[offsetIdx(61, 2)] = 185;
+	blockOffsets[offsetIdx(61, 4)] = 184;
+	blockOffsets[offsetIdx(61, 5)] = 185;
+	setOffsetsForID(62, 186, *this);
+	blockOffsets[offsetIdx(62, 2)] = 188;
+	blockOffsets[offsetIdx(62, 4)] = 187;
+	blockOffsets[offsetIdx(62, 5)] = 188;
 	setOffsetsForID(63, 73, *this);
 	blockOffsets[offsetIdx(63, 0)] = 72;
 	blockOffsets[offsetIdx(63, 1)] = 72;
@@ -1031,10 +1104,10 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(65, 5)] = 85;
 	setOffsetsForID(66, 86, *this);
 	blockOffsets[offsetIdx(66, 1)] = 87;
-	blockOffsets[offsetIdx(66, 2)] = 88;
-	blockOffsets[offsetIdx(66, 3)] = 89;
-	blockOffsets[offsetIdx(66, 4)] = 90;
-	blockOffsets[offsetIdx(66, 5)] = 91;
+	blockOffsets[offsetIdx(66, 2)] = 200;
+	blockOffsets[offsetIdx(66, 3)] = 201;
+	blockOffsets[offsetIdx(66, 4)] = 202;
+	blockOffsets[offsetIdx(66, 5)] = 203;
 	blockOffsets[offsetIdx(66, 6)] = 92;
 	blockOffsets[offsetIdx(66, 7)] = 93;
 	blockOffsets[offsetIdx(66, 8)] = 94;
@@ -1047,17 +1120,17 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(68, 3)] = 101;
 	blockOffsets[offsetIdx(68, 4)] = 102;
 	blockOffsets[offsetIdx(68, 5)] = 103;
-	setOffsetsForID(69, 104, *this);
-	blockOffsets[offsetIdx(69, 2)] = 105;
-	blockOffsets[offsetIdx(69, 3)] = 106;
-	blockOffsets[offsetIdx(69, 4)] = 107;
-	blockOffsets[offsetIdx(69, 5)] = 108;
-	blockOffsets[offsetIdx(69, 6)] = 109;
-	blockOffsets[offsetIdx(69, 10)] = 105;
-	blockOffsets[offsetIdx(69, 11)] = 106;
-	blockOffsets[offsetIdx(69, 12)] = 107;
-	blockOffsets[offsetIdx(69, 13)] = 108;
-	blockOffsets[offsetIdx(69, 14)] = 109;
+	setOffsetsForID(69, 194, *this);
+	blockOffsets[offsetIdx(69, 2)] = 195;
+	blockOffsets[offsetIdx(69, 3)] = 196;
+	blockOffsets[offsetIdx(69, 4)] = 197;
+	blockOffsets[offsetIdx(69, 5)] = 198;
+	blockOffsets[offsetIdx(69, 6)] = 199;
+	blockOffsets[offsetIdx(69, 10)] = 195;
+	blockOffsets[offsetIdx(69, 11)] = 196;
+	blockOffsets[offsetIdx(69, 12)] = 197;
+	blockOffsets[offsetIdx(69, 13)] = 198;
+	blockOffsets[offsetIdx(69, 14)] = 199;
 	setOffsetsForID(70, 110, *this);
 	blockOffsets[offsetIdx(71, 1)] = 111;
 	blockOffsets[offsetIdx(71, 5)] = 111;
@@ -1088,13 +1161,13 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(76, 2)] = 142;
 	blockOffsets[offsetIdx(76, 3)] = 143;
 	blockOffsets[offsetIdx(76, 4)] = 144;
-	setOffsetsForID(77, 123, *this);
-	blockOffsets[offsetIdx(77, 2)] = 124;
-	blockOffsets[offsetIdx(77, 3)] = 125;
-	blockOffsets[offsetIdx(77, 4)] = 126;
-	blockOffsets[offsetIdx(77, 10)] = 124;
-	blockOffsets[offsetIdx(77, 11)] = 125;
-	blockOffsets[offsetIdx(77, 12)] = 126;
+	setOffsetsForID(77, 190, *this);
+	blockOffsets[offsetIdx(77, 2)] = 191;
+	blockOffsets[offsetIdx(77, 3)] = 192;
+	blockOffsets[offsetIdx(77, 4)] = 193;
+	blockOffsets[offsetIdx(77, 10)] = 191;
+	blockOffsets[offsetIdx(77, 11)] = 192;
+	blockOffsets[offsetIdx(77, 12)] = 193;
 	setOffsetsForID(78, 127, *this);
 	setOffsetsForID(79, 128, *this);
 	setOffsetsForID(80, 129, *this);
@@ -1208,15 +1281,28 @@ void BlockImages::retouchAlphas(int B)
 	}
 }
 
-bool BlockImages::construct(int B, const string& terrainfile)
+bool BlockImages::construct(int B, const string& terrainfile, const string& firefile)
 {
+	if (B < 2)
+		return false;
+
 	// read the terrain file, check that it's okay, and get a resized copy for use
 	RGBAImage terrain;
 	if (!terrain.readPNG(terrainfile))
 		return false;
-	if (terrain.w != 256 || terrain.h != 256 || B < 2)
+	if (terrain.w != 256 || terrain.h != 256)
 		return false;
 	RGBAImage tiles = getResizedTerrain(terrain, B);
+
+	// read fire.png, make sure it's okay, and get a resized copy
+	RGBAImage fire;
+	if (!fire.readPNG(firefile))
+		return false;
+	if (fire.w != 16 || fire.h != 16)
+		return false;
+	RGBAImage firetile;
+	firetile.create(2*B, 2*B);
+	resize(fire, ImageRect(0, 0, 16, 16), firetile, ImageRect(0, 0, 2*B, 2*B));
 
 	// colorize the grass and leaves tiles
 	darken(tiles, ImageRect(0, 0, 2*B, 2*B), 0.6, 0.95, 0.3);  // tile 0 = grass top
@@ -1273,12 +1359,12 @@ bool BlockImages::construct(int B, const string& terrainfile)
 	drawBlockImage(img, getRect(57), tiles, 24, 24, 24, B);  // diamond block
 	drawBlockImage(img, getRect(58), tiles, 59, 60, 43, B);  // workbench
 	drawBlockImage(img, getRect(67), tiles, 2, 2, 87, B);  // soil
-	drawBlockImage(img, getRect(68), tiles, 45, 44, 1, B);  // furnace W
-	drawBlockImage(img, getRect(149), tiles, 44, 45, 1, B);  // furnace N
-	drawBlockImage(img, getRect(150), tiles, 45, 45, 1, B);  // furnace E/S
-	drawBlockImage(img, getRect(69), tiles, 45, 61, 1, B);  // lit furnace W
-	drawBlockImage(img, getRect(151), tiles, 61, 45, 1, B);  // lit furnace N
-	drawBlockImage(img, getRect(152), tiles, 45, 45, 1, B);  // lit furnace E/S
+	drawBlockImage(img, getRect(183), tiles, 45, 44, 62, B);  // furnace W
+	drawBlockImage(img, getRect(184), tiles, 44, 45, 62, B);  // furnace N
+	drawBlockImage(img, getRect(185), tiles, 45, 45, 62, B);  // furnace E/S
+	drawBlockImage(img, getRect(186), tiles, 45, 61, 62, B);  // lit furnace W
+	drawBlockImage(img, getRect(187), tiles, 61, 45, 62, B);  // lit furnace N
+	drawBlockImage(img, getRect(188), tiles, 45, 45, 62, B);  // lit furnace E/S
 	drawBlockImage(img, getRect(120), tiles, 51, 51, 51, B);  // redstone ore
 	drawBlockImage(img, getRect(128), tiles, 67, 67, 67, B);  // ice
 	drawBlockImage(img, getRect(180), tiles, -1, -1, 67, B);  // ice surface
@@ -1364,10 +1450,14 @@ bool BlockImages::construct(int B, const string& terrainfile)
 	drawSingleFaceBlockImage(img, getRect(147), tiles, 115, 3, B);  // red torch W off
 	drawSingleFaceBlockImage(img, getRect(148), tiles, 115, 2, B);  // red torch E off
 
-	drawPartialSingleFaceBlockImage(img, getRect(100), tiles, 4, 2, B, 0.25, 0.75);  // wall sign facing E
-	drawPartialSingleFaceBlockImage(img, getRect(101), tiles, 4, 3, B, 0.25, 0.75);  // wall sign facing W
-	drawPartialSingleFaceBlockImage(img, getRect(102), tiles, 4, 0, B, 0.25, 0.75);  // wall sign facing N
-	drawPartialSingleFaceBlockImage(img, getRect(103), tiles, 4, 1, B, 0.25, 0.75);  // wall sign facing S
+	drawPartialSingleFaceBlockImage(img, getRect(100), tiles, 4, 2, B, 0.25, 0.75, 0, 1);  // wall sign facing E
+	drawPartialSingleFaceBlockImage(img, getRect(101), tiles, 4, 3, B, 0.25, 0.75, 0, 1);  // wall sign facing W
+	drawPartialSingleFaceBlockImage(img, getRect(102), tiles, 4, 0, B, 0.25, 0.75, 0, 1);  // wall sign facing N
+	drawPartialSingleFaceBlockImage(img, getRect(103), tiles, 4, 1, B, 0.25, 0.75, 0, 1);  // wall sign facing S
+	drawPartialSingleFaceBlockImage(img, getRect(190), tiles, 1, 1, B, 0.35, 0.65, 0.35, 0.65);  // stone button facing S
+	drawPartialSingleFaceBlockImage(img, getRect(191), tiles, 1, 0, B, 0.35, 0.65, 0.35, 0.65);  // stone button facing N
+	drawPartialSingleFaceBlockImage(img, getRect(192), tiles, 1, 3, B, 0.35, 0.65, 0.35, 0.65);  // stone button facing W
+	drawPartialSingleFaceBlockImage(img, getRect(193), tiles, 1, 2, B, 0.35, 0.65, 0.35, 0.65);  // stone button facing E
 
 	drawSolidColorBlockImage(img, getRect(139), 0xd07b2748, B);  // portal
 
@@ -1380,17 +1470,18 @@ bool BlockImages::construct(int B, const string& terrainfile)
 	drawStairsW(img, getRect(98), tiles, 16, B);  // cobble stairs asc W
 	drawStairsE(img, getRect(99), tiles, 16, B);  // cobble stairs asc E
 
-	drawFloorBlockImage(img, getRect(55), tiles, 100, 0, B);  // redstone wire
+	drawFloorBlockImage(img, getRect(55), tiles, 100, 0, B);  // redstone wire NSEW
 	drawFloorBlockImage(img, getRect(86), tiles, 128, 1, B);  // track EW
 	drawFloorBlockImage(img, getRect(87), tiles, 128, 0, B);  // track NS
-	drawFloorBlockImage(img, getRect(88), tiles, 128, 0, B);  // track asc S
-	drawFloorBlockImage(img, getRect(89), tiles, 128, 0, B);  // track asc N
-	drawFloorBlockImage(img, getRect(90), tiles, 128, 1, B);  // track asc E
-	drawFloorBlockImage(img, getRect(91), tiles, 128, 1, B);  // track asc W
 	drawFloorBlockImage(img, getRect(92), tiles, 112, 1, B);  // track NE corner
 	drawFloorBlockImage(img, getRect(93), tiles, 112, 0, B);  // track SE corner
 	drawFloorBlockImage(img, getRect(94), tiles, 112, 3, B);  // track SW corner
 	drawFloorBlockImage(img, getRect(95), tiles, 112, 2, B);  // track NW corner
+
+	drawAngledFloorBlockImage(img, getRect(200), tiles, 128, 0, 0, B);  // track asc S
+	drawAngledFloorBlockImage(img, getRect(201), tiles, 128, 0, 2, B);  // track asc N
+	drawAngledFloorBlockImage(img, getRect(202), tiles, 128, 1, 3, B);  // track asc E
+	drawAngledFloorBlockImage(img, getRect(203), tiles, 128, 1, 1, B);  // track asc W
 
 	drawFencePost(img, getRect(134), tiles, 4, B);  // fence post
 	drawFence(img, getRect(158), tiles, 4, true, false, false, false, B);  // fence N
@@ -1413,6 +1504,15 @@ bool BlockImages::construct(int B, const string& terrainfile)
 	drawSign(img, getRect(71), tiles, 4, B);  // sign facing NE/SW
 	drawSign(img, getRect(72), tiles, 4, B);  // sign facing E/W
 	drawSign(img, getRect(73), tiles, 4, B);  // sign facing SE/NW
+
+	drawWallLever(img, getRect(194), tiles, 1, B);  // wall lever facing S
+	drawWallLever(img, getRect(195), tiles, 0, B);  // wall lever facing N
+	drawWallLever(img, getRect(196), tiles, 3, B);  // wall lever facing W
+	drawWallLever(img, getRect(197), tiles, 2, B);  // wall lever facing E
+	drawFloorLeverEW(img, getRect(198), tiles, B);  // ground lever EW
+	drawFloorLeverNS(img, getRect(199), tiles, B);  // ground lever NS
+
+	drawFire(img, getRect(189), firetile, B);  // fire
 
 	return true;
 }
