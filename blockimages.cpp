@@ -77,6 +77,7 @@ bool BlockImages::create(int B, const string& imgpath)
 		int w = rectsize*16, h = (NUMIMAGES/16 + 1) * rectsize;
 		if (img.w == w && img.h == h && biversion == NUMIMAGES)
 		{
+			retouchAlphas(B);
 			checkOpacityAndTransparency(B);
 			return true;
 		}
@@ -120,6 +121,7 @@ bool BlockImages::create(int B, const string& imgpath)
 	img.writePNG(blocksfile);
 	writeBlockImagesVersion(B, imgpath, NUMIMAGES);
 
+	retouchAlphas(B);
 	checkOpacityAndTransparency(B);
 	return true;
 }
@@ -1164,6 +1166,44 @@ void BlockImages::checkOpacityAndTransparency(int B)
 				transparency[i] = false;
 			if (!opacity[i] && !transparency[i])
 				break;
+		}
+	}
+}
+
+void BlockImages::retouchAlphas(int B)
+{
+	for (int i = 0; i < NUMIMAGES; i++)
+	{
+		ImageRect rect = getRect(i);
+		// use the face iterators to examine the N, W, and U faces; any alpha under 10 is changed
+		//  to 0, and any alpha above 245 is changed to 255
+		int tilesize = 2*B;
+		// N face starts at [0,B]
+		for (FaceIterator it(rect.x, rect.y + B, 1, tilesize); !it.end; it.advance())
+		{
+			int a = ALPHA(img(it.x, it.y));
+			if (a < 10)
+				setAlpha(img(it.x, it.y), 0);
+			else if (a > 245)
+				setAlpha(img(it.x, it.y), 255);
+		}
+		// W face starts at [2B,2B]
+		for (FaceIterator it(rect.x + 2*B, rect.y + 2*B, -1, tilesize); !it.end; it.advance())
+		{
+			int a = ALPHA(img(it.x, it.y));
+			if (a < 10)
+				setAlpha(img(it.x, it.y), 0);
+			else if (a > 245)
+				setAlpha(img(it.x, it.y), 255);
+		}
+		// U face starts at [2B-1,0]
+		for (TopFaceIterator it(rect.x + 2*B-1, rect.y, tilesize); !it.end; it.advance())
+		{
+			int a = ALPHA(img(it.x, it.y));
+			if (a < 10)
+				setAlpha(img(it.x, it.y), 0);
+			else if (a > 245)
+				setAlpha(img(it.x, it.y), 255);
 		}
 	}
 }

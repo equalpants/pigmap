@@ -31,6 +31,11 @@ typedef uint32_t RGBAPixel;
 
 RGBAPixel makeRGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 
+void setAlpha(RGBAPixel& p, int a);
+void setBlue(RGBAPixel& p, int b);
+void setGreen(RGBAPixel& p, int g);
+void setRed(RGBAPixel& p, int r);
+
 struct RGBAImage
 {
 	std::vector<RGBAPixel> data;

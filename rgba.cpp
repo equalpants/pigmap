@@ -37,6 +37,30 @@ RGBAPixel makeRGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 	return (a << 24) | (b << 16) | (g << 8) | r;
 }
 
+void setAlpha(RGBAPixel& p, int a)
+{
+	p &= 0xffffff;
+	p |= (a & 0xff) << 24;
+}
+
+void setBlue(RGBAPixel& p, int b)
+{
+	p &= 0xff00ffff;
+	p |= (b & 0xff) << 16;
+}
+
+void setGreen(RGBAPixel& p, int g)
+{
+	p &= 0xffff00ff;
+	p |= (g & 0xff) << 8;
+}
+
+void setRed(RGBAPixel& p, int r)
+{
+	p &= 0xffffff00;
+	p |= r & 0xff;
+}
+
 
 void RGBAImage::create(int32_t ww, int32_t hh)
 {

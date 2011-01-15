@@ -47,6 +47,14 @@
 //  non-transparent pixels outside the hexagon, but you'll just get a messed-up image, since the renderer
 //  uses only the hexagon to determine visibility, etc.
 //
+// note that translucent blocks require the most work to render, simply because you can see what's behind them;
+//  if every block in the world was translucent, for example, then every block would be considered visible
+// ...so if you're editing the block images for special purposes like X-ray vision, the fastest results are
+//  obtained by making unwanted blocks fully transparent, not just translucent
+// ...also, any pixels in the block images with alphas < 10 will have their alphas set to 0, and similarly
+//  any alphas > 245 will be set to 255; this is to prevent massive slowdown from accidental image-editing
+//  cock-ups, like somehow setting the transparency of the whole image to 99% instead of 100%, etc.
+//
 // most block images are created by resizing the relevant terrain.png images from 16x16 to 2Bx2B, then painting
 //  their columns onto the faces of the block image thusly (example is for B = 3 again):
 //
@@ -72,9 +80,8 @@ struct BlockImages
 
 	// for every possible 8-bit block id/4-bit block data combination, this holds the offset into the image
 	//  (unrecognized id/data values are pointed at the dummy block image)
-	//!!!!!!! this doesn't handle some things like fences, double chests, direction of furnace--for those,
-	//         we'll have to extend this to depend on not just blockID/blockData, but also some extra information
-	//         computed by the renderer (by checking neighboring blocks)
+	// this doesn't handle some things like fences and double chests where the rendering doesn't depend solely
+	//  on the blockID/blockData; for those, the renderer just has to know the proper offsets on its own
 	int blockOffsets[256 * 16];
 	int getOffset(uint8_t blockID, uint8_t blockData) const {return blockOffsets[blockID * 16 + blockData];}
 
@@ -102,6 +109,10 @@ struct BlockImages
 
 	// fill in the opacity and transparency members
 	void checkOpacityAndTransparency(int B);
+
+	// scan the block images looking for not-quite-transparent or not-quite-opaque pixels; if they're close enough,
+	//  push them all the way
+	void retouchAlphas(int B);
 
 	// build block images from terrain.png
 	bool construct(int B, const std::string& terrainfile);
