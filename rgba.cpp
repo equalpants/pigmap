@@ -213,38 +213,18 @@ void opaqueblend(RGBAPixel& dest, const RGBAPixel& source)
 	dest = 0xff000000 | ((newrgb >> 24) & 0xff0000) | ((newrgb >> 16) & 0xff00) | ((newrgb >> 8) & 0xff);
 }
 
-// if destination pixel is 100% transparent, the new alpha is the source alpha
-void transblend(RGBAPixel& dest, const RGBAPixel& source)
-{
-	// get sa and sainv in the range 1-256; this way, the possible results of blending 8-bit color channels sc and dc
-	//  (using sc*sa + dc*sainv) span the range 0x0000-0xffff, so we can just truncate and shift
-	int64_t sa = ALPHA(source) + 1;
-	int64_t sainv = 257 - sa;
-	// compute the new RGB channels
-	int64_t d = dest, s = source;
-	d = ((d << 16) & UINT64_C(0xff00000000)) | ((d << 8) & 0xff0000) | (d & 0xff);
-	s = ((s << 16) & UINT64_C(0xff00000000)) | ((s << 8) & 0xff0000) | (s & 0xff);
-	int64_t newrgb = s*sa + d*sainv;
-	// destination alpha is source alpha; combine everything and write it out
-	dest = (source & 0xff000000) | ((newrgb >> 24) & 0xff0000) | ((newrgb >> 16) & 0xff00) | ((newrgb >> 8) & 0xff);
-}
-
 void blend(RGBAPixel& dest, const RGBAPixel& source)
 {
 	// if source is transparent, there's nothing to do
 	if (source <= 0xffffff)
 		return;
-	// if source is opaque, just copy it over
-	else if (source >= 0xff000000)
+	// if source is opaque, or if destination is transparent, just copy it over
+	else if (source >= 0xff000000 || dest <= 0xffffff)
 		dest = source;
 	// if source is translucent and dest is opaque, the color channels need to be blended,
 	//  but the new pixel will be opaque
 	else if (dest >= 0xff000000)
 		opaqueblend(dest, source);
-	// if source is translucent and dest is transparent, color channels need to be blended,
-	//  but the new alpha is just the source alpha
-	else if (dest <= 0xffffff)
-		transblend(dest, source);
 	// both source and dest are translucent; we need the whole deal
 	else
 		fullblend(dest, source);
