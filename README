@@ -22,6 +22,28 @@ Andrew Brown and contributors).
 
 ---------------------------------------------------------------------------------------------------
 
+Change log (important stuff only):
+
+0.6
+-new block types for Minecraft Beta 1.2: lapis, cake, etc.
+-remaining undrawn blocks from previous versions now drawn: fire, buttons, levers, ascending
+  cart tracks
+-fire.png added; must be placed in images directory alongside terrain.png
+-some block image offsets changed; see note below if you have manually edited your blocks-B.png
+-some drawing improvements; may want to redo all block images from terrain.png
+
+0.5.1
+-speed improvements
+-previously, we would abort if the world was too absurdly large to deal with--i.e. if there were
+  some chunks whose coordinates were well into the billions--but apparently there is a Minecraft
+  bug that can create such chunks way off in space, even if the world is normally-sized, so now
+  we just ignore any chunks that are too far out to handle
+
+0.5
+-initial version
+
+---------------------------------------------------------------------------------------------------
+
 Supported platforms are Linux and cygwin.  (But porting to Windows native or OSX should be easy.)
 
 Use supplied makefile to build with g++.  Depending on the system, it might need to be modified to
@@ -86,6 +108,10 @@ This is where pigmap expects to find either a copy of terrain.png, or a copy of 
 that contains the isometric renderings of each block.  The default image path is ".".  Each
 blocks-B.png comes with a corresponding blocks-B.version, which remembers how many block images are
 stored in blocks-B.png.  (As more blocks are added to the game, the version will change.)
+
+The file fire.png, included with pigmap, must also be placed in the image path, alongside
+terrain.png.  (fire.png contains the image used to draw fire blocks; terrain.png does not have a
+tile for fire.)
 
 The selection of block images works thusly:
 
@@ -160,3 +186,27 @@ that include required chunks are rendered and saved.  Base tiles that exist alre
 are overwritten, but those at lower zoom levels are merely modified--only the changed portions
 are redrawn.
 
+---------------------------------------------------------------------------------------------------
+
+Special note for those who choose to manually edit blocks-B.png:
+
+When new block types are introduced, their block images are added on to the end of blocks-B.png,
+and the existing contents are preserved, so you don't need to worry about previous modifications
+getting destroyed.  However, sometimes it may be necessary to remove existing block images and
+replace them with new versions; when this happens, the old block image offset will no longer be
+used, and a new block image will be added to the end of the file.
+
+Example: prior to pigmap 0.6, the furnace block images were located at offsets 68, 69, and 149-152.
+Starting with 0.6, they are instead located at 183-188.  (This is because the furnace graphics
+were changed in Minecraft Beta 1.2.)  So if you modified the furnace block images while using a
+pre-0.6 version of pigmap, your modified images can still be found at their old locations in your
+blocks-B.png, but they must be copied to the new locations.
+
+Complete list of block image moves:
+
+--- pigmap 0.6 ---
+furnaces: 68->183, 69->186, 149->184, 150->185, 151->187, 152->188
+fire: 48->189
+buttons: 123->190, 124->191, 125->192, 126->193
+levers: 104->194, 105->195, 106->196, 107->197, 108->198, 109->199
+ascending tracks: 88->200, 89->201, 90->202, 91->203

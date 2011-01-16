@@ -960,7 +960,7 @@ void drawFire(RGBAImage& dest, const ImageRect& drect, const RGBAImage& firetile
 
 
 
-const int BlockImages::NUMIMAGES = 206;
+const int BlockImages::NUMIMAGES = 229;
 
 int offsetIdx(uint8_t blockID, uint8_t blockData)
 {
@@ -1019,10 +1019,35 @@ void BlockImages::setOffsets()
 	setOffsetsForID(15, 23, *this);
 	setOffsetsForID(16, 24, *this);
 	setOffsetsForID(17, 25, *this);
+	blockOffsets[offsetIdx(17, 1)] = 219;
+	blockOffsets[offsetIdx(17, 2)] = 220;
 	setOffsetsForID(18, 26, *this);
 	setOffsetsForID(19, 27, *this);
 	setOffsetsForID(20, 28, *this);
-	setOffsetsForID(35, 29, *this);
+	setOffsetsForID(21, 221, *this);
+	setOffsetsForID(22, 222, *this);
+	setOffsetsForID(23, 223, *this);
+	blockOffsets[offsetIdx(23, 2)] = 225;
+	blockOffsets[offsetIdx(23, 4)] = 224;
+	blockOffsets[offsetIdx(23, 5)] = 225;
+	setOffsetsForID(24, 226, *this);
+	setOffsetsForID(25, 227, *this);
+	blockOffsets[offsetIdx(35, 0)] = 29;
+	blockOffsets[offsetIdx(35, 1)] = 204;
+	blockOffsets[offsetIdx(35, 2)] = 205;
+	blockOffsets[offsetIdx(35, 3)] = 206;
+	blockOffsets[offsetIdx(35, 4)] = 207;
+	blockOffsets[offsetIdx(35, 5)] = 208;
+	blockOffsets[offsetIdx(35, 6)] = 209;
+	blockOffsets[offsetIdx(35, 7)] = 210;
+	blockOffsets[offsetIdx(35, 8)] = 211;
+	blockOffsets[offsetIdx(35, 9)] = 212;
+	blockOffsets[offsetIdx(35, 10)] = 213;
+	blockOffsets[offsetIdx(35, 11)] = 214;
+	blockOffsets[offsetIdx(35, 12)] = 215;
+	blockOffsets[offsetIdx(35, 13)] = 216;
+	blockOffsets[offsetIdx(35, 14)] = 217;
+	blockOffsets[offsetIdx(35, 15)] = 218;
 	setOffsetsForID(37, 30, *this);
 	setOffsetsForID(38, 31, *this);
 	setOffsetsForID(39, 32, *this);
@@ -1188,6 +1213,7 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(91, 0)] = 155;
 	blockOffsets[offsetIdx(91, 1)] = 155;
 	blockOffsets[offsetIdx(91, 3)] = 156;
+	setOffsetsForID(92, 228, *this);
 }
 
 void BlockImages::checkOpacityAndTransparency(int B)
@@ -1313,6 +1339,11 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	resize(terrain, ImageRect(5*16 + 1, 4*16 + 1, 14, 14), tiles, ImageRect(5*2*B, 4*2*B, 2*B, 2*B));
 	resize(terrain, ImageRect(6*16 + 1, 4*16, 14, 16), tiles, ImageRect(6*2*B, 4*2*B, 2*B, 2*B));
 
+	// ...and the same thing for the cake tiles
+	resize(terrain, ImageRect(9*16 + 1, 7*16 + 1, 14, 14), tiles, ImageRect(9*2*B, 7*2*B, 2*B, 2*B));
+	// put the side of the cake on the bottom half instead of the top to make drawing easier
+	resize(terrain, ImageRect(10*16 + 1, 7*16, 14, 8), tiles, ImageRect(10*2*B, 7*2*B + B, 2*B, B));
+
 
 	// initialize image
 	img.create(rectsize * 16, (NUMIMAGES/16 + 1) * rectsize);
@@ -1336,10 +1367,27 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawBlockImage(img, getRect(23), tiles, 33, 33, 33, B);  // iron ore
 	drawBlockImage(img, getRect(24), tiles, 34, 34, 34, B);  // coal ore
 	drawBlockImage(img, getRect(25), tiles, 20, 20, 21, B);  // log
+	drawBlockImage(img, getRect(219), tiles, 116, 116, 21, B);  // dark log
+	drawBlockImage(img, getRect(220), tiles, 117, 117, 21, B);  // birch log
 	drawBlockImage(img, getRect(26), tiles, 52, 52, 52, B);  // leaves
 	drawBlockImage(img, getRect(27), tiles, 48, 48, 48, B);  // sponge
 	drawBlockImage(img, getRect(28), tiles, 49, 49, 49, B);  // glass
-	drawBlockImage(img, getRect(29), tiles, 64, 64, 64, B);  // cloth
+	drawBlockImage(img, getRect(29), tiles, 64, 64, 64, B);  // white wool
+	drawBlockImage(img, getRect(204), tiles, 210, 210, 210, B);  // orange wool
+	drawBlockImage(img, getRect(205), tiles, 194, 194, 194, B);  // magenta wool
+	drawBlockImage(img, getRect(206), tiles, 178, 178, 178, B);  // light blue wool
+	drawBlockImage(img, getRect(207), tiles, 162, 162, 162, B);  // yellow wool
+	drawBlockImage(img, getRect(208), tiles, 146, 146, 146, B);  // lime wool
+	drawBlockImage(img, getRect(209), tiles, 130, 130, 130, B);  // pink wool
+	drawBlockImage(img, getRect(210), tiles, 114, 114, 114, B);  // gray wool
+	drawBlockImage(img, getRect(211), tiles, 225, 225, 225, B);  // light gray wool
+	drawBlockImage(img, getRect(212), tiles, 209, 209, 209, B);  // cyan wool
+	drawBlockImage(img, getRect(213), tiles, 193, 193, 193, B);  // purple wool
+	drawBlockImage(img, getRect(214), tiles, 177, 177, 177, B);  // blue wool
+	drawBlockImage(img, getRect(215), tiles, 161, 161, 161, B);  // brown wool
+	drawBlockImage(img, getRect(216), tiles, 145, 145, 145, B);  // green wool
+	drawBlockImage(img, getRect(217), tiles, 129, 129, 129, B);  // red wool
+	drawBlockImage(img, getRect(218), tiles, 113, 113, 113, B);  // black wool
 	drawBlockImage(img, getRect(34), tiles, 23, 23, 23, B);  // gold block
 	drawBlockImage(img, getRect(35), tiles, 22, 22, 22, B);  // iron block
 	drawBlockImage(img, getRect(36), tiles, 5, 5, 6, B);  // double step
@@ -1383,6 +1431,13 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawBlockImage(img, getRect(140), tiles, 118, 120, 102, B);  // jack-o-lantern W
 	drawBlockImage(img, getRect(155), tiles, 118, 118, 102, B);  // jack-o-lantern E/S
 	drawBlockImage(img, getRect(156), tiles, 120, 118, 102, B);  // jack-o-lantern N
+	drawBlockImage(img, getRect(221), tiles, 160, 160, 160, B);  // lapis ore
+	drawBlockImage(img, getRect(222), tiles, 144, 144, 144, B);  // lapis block
+	drawBlockImage(img, getRect(223), tiles, 45, 46, 62, B);  // dispenser W
+	drawBlockImage(img, getRect(224), tiles, 46, 45, 62, B);  // dispenser N
+	drawBlockImage(img, getRect(225), tiles, 45, 45, 62, B);  // dispenser E/S
+	drawBlockImage(img, getRect(226), tiles, 192, 192, 176, B);  // sandstone
+	drawBlockImage(img, getRect(227), tiles, 74, 74, 74, B);  // note block
 
 	drawPartialBlockImage(img, getRect(9), tiles, 205, 205, 205, B, 0.125);  // water level 7
 	drawPartialBlockImage(img, getRect(10), tiles, 205, 205, 205, B, 0.25);  // water level 6
@@ -1398,6 +1453,7 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawPartialBlockImage(img, getRect(110), tiles, 1, 1, 1, B, 0.875);  // stone pressure plate
 	drawPartialBlockImage(img, getRect(119), tiles, 4, 4, 4, B, 0.875);  // wood pressure plate
 	drawPartialBlockImage(img, getRect(127), tiles, 66, 66, 66, B, 0.75);  // snow
+	drawPartialBlockImage(img, getRect(228), tiles, 122, 122, 121, B, 0.5);  // cake
 
 	drawItemBlockImage(img, getRect(6), tiles, 15, B);  // sapling
 	drawItemBlockImage(img, getRect(30), tiles, 13, B);  // yellow flower
