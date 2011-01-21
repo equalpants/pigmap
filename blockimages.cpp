@@ -130,16 +130,18 @@ bool BlockImages::create(int B, const string& imgpath)
 
 
 
-// given terrain.png, resize it so every 16x16 image becomes 2Bx2B instead
-//  (so the resulting image will be a 16x16 array of 2Bx2B images)
-RGBAImage getResizedTerrain(const RGBAImage& terrain, int B)
+// given terrain.png, resize it so every texture becomes 2Bx2B instead of 16x16 (or whatever the actual
+//  texture size is)
+// ...so the resulting image will be a 16x16 array of 2Bx2B images
+RGBAImage getResizedTerrain(const RGBAImage& terrain, int terrainSize, int B)
 {
 	int newsize = 2*B;
 	RGBAImage img;
 	img.create(16*newsize, 16*newsize);
 	for (int y = 0; y < 16; y++)
 		for (int x = 0; x < 16; x++)
-			resize(terrain, ImageRect(x*16, y*16, 16, 16), img, ImageRect(x*newsize, y*newsize, newsize, newsize));
+			resize(terrain, ImageRect(x*terrainSize, y*terrainSize, terrainSize, terrainSize),
+			       img, ImageRect(x*newsize, y*newsize, newsize, newsize));
 	return img;
 }
 
@@ -1316,33 +1318,42 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	RGBAImage terrain;
 	if (!terrain.readPNG(terrainfile))
 		return false;
-	if (terrain.w != 256 || terrain.h != 256)
+	if (terrain.w % 16 != 0 || terrain.h != terrain.w)
 		return false;
-	RGBAImage tiles = getResizedTerrain(terrain, B);
+	int terrainSize = terrain.w / 16;
+	RGBAImage tiles = getResizedTerrain(terrain, terrainSize, B);
 
 	// read fire.png, make sure it's okay, and get a resized copy
 	RGBAImage fire;
 	if (!fire.readPNG(firefile))
 		return false;
-	if (fire.w != 16 || fire.h != 16)
+	if (fire.w != fire.h)
 		return false;
 	RGBAImage firetile;
 	firetile.create(2*B, 2*B);
-	resize(fire, ImageRect(0, 0, 16, 16), firetile, ImageRect(0, 0, 2*B, 2*B));
+	resize(fire, ImageRect(0, 0, fire.w, fire.h), firetile, ImageRect(0, 0, 2*B, 2*B));
 
 	// colorize the grass and leaves tiles
 	darken(tiles, ImageRect(0, 0, 2*B, 2*B), 0.6, 0.95, 0.3);  // tile 0 = grass top
 	darken(tiles, ImageRect(8*B, 6*B, 2*B, 2*B), 0.3, 1.0, 0.1);  // tile 52 = leaves
 
+	// calculate the pixel offset used for cactus/cake; represents one pixel of the default
+	//  16x16 texture size
+	int smallOffset = (terrainSize + 15) / 16;  // ceil(terrainSize/16)
+
 	// resize the cactus tiles again, this time taking a smaller portion of the terrain
 	//  image (to drop the transparent border)
-	resize(terrain, ImageRect(5*16 + 1, 4*16 + 1, 14, 14), tiles, ImageRect(5*2*B, 4*2*B, 2*B, 2*B));
-	resize(terrain, ImageRect(6*16 + 1, 4*16, 14, 16), tiles, ImageRect(6*2*B, 4*2*B, 2*B, 2*B));
+	resize(terrain, ImageRect(5*terrainSize + smallOffset, 4*terrainSize + smallOffset, terrainSize - 2*smallOffset, terrainSize - 2*smallOffset),
+	       tiles, ImageRect(5*2*B, 4*2*B, 2*B, 2*B));
+	resize(terrain, ImageRect(6*terrainSize + smallOffset, 4*terrainSize, terrainSize - 2*smallOffset, terrainSize),
+	       tiles, ImageRect(6*2*B, 4*2*B, 2*B, 2*B));
 
 	// ...and the same thing for the cake tiles
-	resize(terrain, ImageRect(9*16 + 1, 7*16 + 1, 14, 14), tiles, ImageRect(9*2*B, 7*2*B, 2*B, 2*B));
+	resize(terrain, ImageRect(9*terrainSize + smallOffset, 7*terrainSize + smallOffset, terrainSize - 2*smallOffset, terrainSize - 2*smallOffset),
+	       tiles, ImageRect(9*2*B, 7*2*B, 2*B, 2*B));
 	// put the side of the cake on the bottom half instead of the top to make drawing easier
-	resize(terrain, ImageRect(10*16 + 1, 7*16, 14, 8), tiles, ImageRect(10*2*B, 7*2*B + B, 2*B, B));
+	resize(terrain, ImageRect(10*terrainSize + smallOffset, 7*terrainSize, terrainSize - 2*smallOffset, terrainSize / 2),
+	       tiles, ImageRect(10*2*B, 7*2*B + B, 2*B, B));
 
 
 	// initialize image

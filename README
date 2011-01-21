@@ -24,6 +24,9 @@ Andrew Brown and contributors).
 
 Change log (important stuff only):
 
+0.6.1
+-support for HD texture packs
+
 0.6
 -new block types for Minecraft Beta 1.2: lapis, cake, etc.
 -remaining undrawn blocks from previous versions now drawn: fire, buttons, levers, ascending
@@ -123,6 +126,8 @@ The selection of block images works thusly:
 This means that pigmap will need terrain.png the first time it runs, so it can generate blocks-B.png;
 subsequent runs will use the existing blocks-B.png, which can be manually edited if insufficiently
 pretty, or for special effects, etc.
+
+The textures in terrain.png (and fire.png) can be any size, as long as they remain square.
 
 d. [optional] number of threads (-h)
 

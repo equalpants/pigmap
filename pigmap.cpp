@@ -19,15 +19,12 @@
 //
 // TODO:
 // -cosmetic things:
-//   -have ascending tracks actually ascend instead of being flat
 //   -have signs actually face correct directions
-//   -things that have no images yet: fire, levers, buttons
 //   -edge shadows on vertical edges, too?
 //   -proper redstone wire directions
 // -premultiply block image alphas?
 // -dump list of corrupted chunks at end, so they can be retried later
 // -keep some space around for PNG row pointers instead of allocating every time
-// -forget about cout/cerr; just stick to one or the other(?)
 // -see if it's better to have threads work together and share a cache?
 //
 
