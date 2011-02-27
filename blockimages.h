@@ -74,9 +74,6 @@ struct BlockImages
 	RGBAImage img;
 	int rectsize;  // size of block image bounding boxes
 
-	// the number of block images
-	static const int NUMIMAGES;
-
 	// for every possible 8-bit block id/4-bit block data combination, this holds the offset into the image
 	//  (unrecognized id/data values are pointed at the dummy block image)
 	// this doesn't handle some things like fences and double chests where the rendering doesn't depend solely
@@ -86,12 +83,12 @@ struct BlockImages
 
 	// check whether a block image is opaque (this is a function of the block images computed from the terrain,
 	//  not of the actual block data; if a block image has 100% alpha everywhere, it's considered opaque)
-	std::vector<bool> opacity;  // size is NUMIMAGES; indexed by offset
+	std::vector<bool> opacity;  // size is NUMBLOCKIMAGES; indexed by offset
 	bool isOpaque(int offset) const {return opacity[offset];}
 	bool isOpaque(uint8_t blockID, uint8_t blockData) const {return opacity[getOffset(blockID, blockData)];}
 
 	// ...and the same thing for complete transparency (0% alpha everywhere)
-	std::vector<bool> transparency;  // size is NUMIMAGES; indexed by offset
+	std::vector<bool> transparency;  // size is NUMBLOCKIMAGES; indexed by offset
 	bool isTransparent(int offset) const {return transparency[offset];}
 	bool isTransparent(uint8_t blockID, uint8_t blockData) const {return transparency[getOffset(blockID, blockData)];}
 
@@ -117,6 +114,8 @@ struct BlockImages
 	bool construct(int B, const std::string& terrainfile, const std::string& firefile);
 };
 
+#define NUMBLOCKIMAGES 248
+
 // block image offsets:
 //
 // 0 dummy/air (transparent) 32 brown mushroom         64 wheat level 2          96 cobble stairs asc S
@@ -124,7 +123,7 @@ struct BlockImages
 // 2 grass                   34 gold block             66 wheat level 0          98 cobble stairs asc W
 // 3 dirt                    35 iron block             67 farmland               99 cobble stairs asc E
 // 4 cobblestone             36 double stone slab      68 UNUSED                 100 wall sign facing E
-// 5 wood                    37 stone slab             69 UNUSED                 101 wall sign facing W
+// 5 planks                  37 stone slab             69 UNUSED                 101 wall sign facing W
 // 6 sapling                 38 brick                  70 sign facing N/S        102 wall sign facing N
 // 7 bedrock                 39 TNT                    71 sign facing NE/SW      103 wall sign facing S
 // 8 water full/falling      40 bookshelf              72 sign facing E/W        104 UNUSED               
@@ -157,25 +156,25 @@ struct BlockImages
 // 130 cactus                162 fence NE              194 wall lever facing S   226 sandstone
 // 131 clay                  163 fence SE              195 wall lever facing N   227 note block
 // 132 reeds                 164 fence NSE             196 wall lever facing W   228 cake
-// 133 jukebox               165 fence W               197 wall lever facing E
-// 134 fence post            166 fence NW              198 ground lever EW
-// 135 pumpkin facing W      167 fence SW              199 ground lever NS
-// 136 netherrack            168 fence NSW             200 track asc S
-// 137 soul sand             169 fence EW              201 track asc N
-// 138 glowstone             170 fence NEW             202 track asc E
-// 139 portal                171 fence SEW             203 track asc W
-// 140 jack-o-lantern W      172 fence NSEW            204 orange wool
-// 141 red torch S on        173 double chest N        205 magenta wool
-// 142 red torch N on        174 double chest S        206 light blue wool
-// 143 red torch E on        175 double chest E        207 yellow wool
-// 144 red torch W on        176 double chest W        208 lime wool
-// 145 red torch S off       177 chest facing N        209 pink wool
-// 146 red torch N off       178 water missing W       210 gray wool
-// 147 red torch E off       179 water missing N       211 light gray wool
-// 148 red torch W off       180 ice surface           212 cyan wool
-// 149 UNUSED                181 ice missing W         213 purple wool
-// 150 UNUSED                182 ice missing N         214 blue wool
-// 151 UNUSED                183 furnace W             215 brown wool
+// 133 jukebox               165 fence W               197 wall lever facing E   229 sandstone slab
+// 134 fence post            166 fence NW              198 ground lever EW       230 wooden slab
+// 135 pumpkin facing W      167 fence SW              199 ground lever NS       231 cobble slab
+// 136 netherrack            168 fence NSW             200 track asc S           232 bed head W
+// 137 soul sand             169 fence EW              201 track asc N           233 bed head N
+// 138 glowstone             170 fence NEW             202 track asc E           234 bed head E
+// 139 portal                171 fence SEW             203 track asc W           235 bed head S
+// 140 jack-o-lantern W      172 fence NSEW            204 orange wool           236 bed foot W
+// 141 red torch S on        173 double chest N        205 magenta wool          237 bed foot N
+// 142 red torch N on        174 double chest S        206 light blue wool       238 bed foot E
+// 143 red torch E on        175 double chest E        207 yellow wool           239 bed foot S
+// 144 red torch W on        176 double chest W        208 lime wool             240 repeater on N
+// 145 red torch S off       177 chest facing N        209 pink wool             241 repeater on S
+// 146 red torch N off       178 water missing W       210 gray wool             242 repeater on E
+// 147 red torch E off       179 water missing N       211 light gray wool       243 repeater on W
+// 148 red torch W off       180 ice surface           212 cyan wool             244 repeater off N
+// 149 UNUSED                181 ice missing W         213 purple wool           245 repeater off S
+// 150 UNUSED                182 ice missing N         214 blue wool             246 repeater off E
+// 151 UNUSED                183 furnace W             215 brown wool            247 repeater off W
 // 152 UNUSED                184 furnace N             216 green wool
 // 153 pumpkin facing E/S    185 furnace E/S           217 red wool
 // 154 pumpkin facing N      186 lit furnace W         218 black wool

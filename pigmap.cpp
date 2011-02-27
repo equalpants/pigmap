@@ -26,6 +26,7 @@
 // -dump list of corrupted chunks at end, so they can be retried later
 // -keep some space around for PNG row pointers instead of allocating every time
 // -see if it's better to have threads work together and share a cache?
+// -for the love of god, clean up blockimages.cpp!
 //
 
 #include <iostream>

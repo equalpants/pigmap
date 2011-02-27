@@ -74,8 +74,8 @@ bool BlockImages::create(int B, const string& imgpath)
 	if (img.readPNG(blocksfile))
 	{
 		// if it's the correct size and version, we're okay
-		int w = rectsize*16, h = (NUMIMAGES/16 + 1) * rectsize;
-		if (img.w == w && img.h == h && biversion == NUMIMAGES)
+		int w = rectsize*16, h = (NUMBLOCKIMAGES/16 + 1) * rectsize;
+		if (img.w == w && img.h == h && biversion == NUMBLOCKIMAGES)
 		{
 			retouchAlphas(B);
 			checkOpacityAndTransparency(B);
@@ -83,7 +83,7 @@ bool BlockImages::create(int B, const string& imgpath)
 		}
 		// if it's a previous version (and the correct size for that version), we'll
 		//  use terrain.png to build the new blocks, but preserve the existing ones
-		if (biversion < NUMIMAGES && img.w == w && img.h == (biversion/16 + 1) * rectsize)
+		if (biversion < NUMBLOCKIMAGES && img.w == w && img.h == (biversion/16 + 1) * rectsize)
 		{
 			oldimg = img;
 			preserveold = true;
@@ -120,7 +120,7 @@ bool BlockImages::create(int B, const string& imgpath)
 
 	// write blocks-B.png and blocks-B.version
 	img.writePNG(blocksfile);
-	writeBlockImagesVersion(B, imgpath, NUMIMAGES);
+	writeBlockImagesVersion(B, imgpath, NUMBLOCKIMAGES);
 
 	retouchAlphas(B);
 	checkOpacityAndTransparency(B);
@@ -186,7 +186,7 @@ struct FaceIterator
 	}
 };
 
-// like FaceIterator with no deltaY (for source rectangles), but with the source rotated
+// like FaceIterator with no deltaY (for source rectangles), but with the source rotated and/or flipped
 struct RotatedFaceIterator
 {
 	bool end;
@@ -195,32 +195,51 @@ struct RotatedFaceIterator
 
 	int size;
 	int rot; // 0 = down, then right; 1 = left, then down; 2 = up, then left; 3 = right, then up
+	bool flipX;
+	int dx1, dy1, dx2, dy2;
 
-	RotatedFaceIterator(int xstart, int ystart, int r, int sz)
+	RotatedFaceIterator(int xstart, int ystart, int r, int sz, bool fX)
 	{
 		size = sz;
 		rot = r;
+		flipX = fX;
 		end = false;
 		pos = 0;
 		if (rot == 0)
 		{
-			x = xstart;
+			x = flipX ? (xstart + size - 1) : xstart;
 			y = ystart;
+			dx1 = 0;
+			dy1 = 1;
+			dx2 = flipX ? -1 : 1;
+			dy2 = 0;
 		}
 		else if (rot == 1)
 		{
-			x = xstart + size - 1;
+			x = flipX ? xstart : (xstart + size - 1);
 			y = ystart;
+			dx1 = flipX ? 1 : -1;
+			dy1 = 0;
+			dx2 = 0;
+			dy2 = 1;
 		}
 		else if (rot == 2)
 		{
-			x = xstart + size - 1;
+			x = flipX ? xstart : (xstart + size - 1);
 			y = ystart + size - 1;
+			dx1 = 0;
+			dy1 = -1;
+			dx2 = flipX ? 1 : -1;
+			dy2 = 0;
 		}
 		else
 		{
-			x = xstart;
+			x = flipX ? (xstart + size - 1) : xstart;
 			y = ystart + size - 1;
+			dx1 = flipX ? -1 : 1;
+			dy1 = 0;
+			dx2 = 0;
+			dy2 = -1;
 		}
 	}
 
@@ -232,41 +251,14 @@ struct RotatedFaceIterator
 			end = true;
 			return;
 		}
-		if (rot == 0)
+		x += dx1;
+		y += dy1;
+		if (pos % size == 0)
 		{
-			y++;
-			if (pos % size == 0)
-			{
-				x++;
-				y -= size;
-			}
-		}
-		else if (rot == 1)
-		{
-			x--;
-			if (pos % size == 0)
-			{
-				y++;
-				x += size;
-			}
-		}
-		else if (rot == 2)
-		{
-			y--;
-			if (pos % size == 0)
-			{
-				x--;
-				y += size;
-			}
-		}
-		else
-		{
-			x++;
-			if (pos % size == 0)
-			{
-				y--;
-				x -= size;
-			}
+			x += dx2;
+			y += dy2;
+			x -= dx1 * size;
+			y -= dy1 * size;
 		}
 	}
 };
@@ -372,37 +364,49 @@ void drawBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& ti
 }
 
 // draw a block image where the block isn't full height (half-steps, snow, etc.)
-// ...supplied fraction should be from 0 to 1, and describes how much of the top should get chopped off
-void drawPartialBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int Nface, int Wface, int Uface, int B, double fraction)
+// ...supplied fraction should be from 0 to 1, and describes how much of the block should be visible
+//  (we take the top portion of the block, but draw it towards the bottom; for example, if fraction is 0.25,
+//  it will appear that the block has been driven 3/4 of the way into the ground)
+// U face can also be rotated, and N/W faces can be X-flipped (set 0x1 for N, 0x2 for W)
+void drawPartialBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int Nface, int Wface, int Uface, int B, double fraction, int rot, int flip)
 {
 	int tilesize = 2*B;
 	// determine how many pixels to chop off the top of the N and W faces
 	int cutoff = max(0, min(tilesize - 1, (int)(fraction * tilesize)));
 	// N face starts at [0,B]
-	for (FaceIterator srcit((Nface%16)*tilesize, (Nface/16)*tilesize, 0, tilesize),
-	     dstit(drect.x, drect.y + B, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	if (Nface != -1)
 	{
-		if (dstit.pos % tilesize >= cutoff)
+		FaceIterator dstit(drect.x, drect.y + B, 1, tilesize);
+		for (RotatedFaceIterator srcit((Nface%16)*tilesize, (Nface/16)*tilesize, 0, tilesize, flip & 0x1); !srcit.end; srcit.advance(), dstit.advance())
 		{
-			dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
-			darken(dest(dstit.x, dstit.y), 0.9, 0.9, 0.9);
+			if (dstit.pos % tilesize >= cutoff)
+			{
+				dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y - cutoff);
+				darken(dest(dstit.x, dstit.y), 0.9, 0.9, 0.9);
+			}
 		}
 	}
 	// W face starts at [2B,2B]
-	for (FaceIterator srcit((Wface%16)*tilesize, (Wface/16)*tilesize, 0, tilesize),
-	     dstit(drect.x + 2*B, drect.y + 2*B, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	if (Wface != -1)
 	{
-		if (dstit.pos % tilesize >= cutoff)
+		FaceIterator dstit(drect.x + 2*B, drect.y + 2*B, -1, tilesize);
+		for (RotatedFaceIterator srcit((Wface%16)*tilesize, (Wface/16)*tilesize, 0, tilesize, flip & 0x2); !srcit.end; srcit.advance(), dstit.advance())
 		{
-			dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
-			darken(dest(dstit.x, dstit.y), 0.8, 0.8, 0.8);
+			if (dstit.pos % tilesize >= cutoff)
+			{
+				dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y - cutoff);
+				darken(dest(dstit.x, dstit.y), 0.8, 0.8, 0.8);
+			}
 		}
 	}
 	// U face starts at [2B-1,cutoff]
-	TopFaceIterator dstit(drect.x + 2*B-1, drect.y + cutoff, tilesize);
-	for (FaceIterator srcit((Uface%16)*tilesize, (Uface/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	if (Uface != -1)
 	{
-		dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+		TopFaceIterator dstit(drect.x + 2*B-1, drect.y + cutoff, tilesize);
+		for (RotatedFaceIterator srcit((Uface%16)*tilesize, (Uface/16)*tilesize, rot, tilesize, false); !srcit.end; srcit.advance(), dstit.advance())
+		{
+			dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+		}
 	}
 }
 
@@ -512,7 +516,7 @@ void drawFloorBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImag
 {
 	int tilesize = 2*B;
 	TopFaceIterator dstit(drect.x + 2*B-1, drect.y + 2*B, tilesize);
-	for (RotatedFaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, rot, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	for (RotatedFaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, rot, tilesize, false); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
 	}
@@ -542,7 +546,7 @@ void drawAngledFloorBlockImage(RGBAImage& dest, const ImageRect& drect, const RG
 {
 	int tilesize = 2*B;
 	TopFaceIterator dstit(drect.x + 2*B-1, drect.y + 2*B, tilesize);
-	for (RotatedFaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, rot, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	for (RotatedFaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, rot, tilesize, false); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		int yoff = 0;
 		int row = srcit.pos % tilesize, col = srcit.pos / tilesize;
@@ -565,7 +569,7 @@ void drawCeilBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage
 {
 	int tilesize = 2*B;
 	TopFaceIterator dstit(drect.x + 2*B-1, drect.y, tilesize);
-	for (RotatedFaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, rot, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	for (RotatedFaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, rot, tilesize, false); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
 	}
@@ -951,6 +955,12 @@ void drawFloorLeverEW(RGBAImage& dest, const ImageRect& drect, const RGBAImage& 
 	drawItemBlockImage(dest, drect, tiles, 96, B);
 }
 
+void drawRepeater(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int rot, int B)
+{
+	drawFloorBlockImage(dest, drect, tiles, tile, rot, B);
+	drawItemBlockImage(dest, drect, tiles, 99, B);
+}
+
 void drawFire(RGBAImage& dest, const ImageRect& drect, const RGBAImage& firetile, int B)
 {
 	drawSingleFaceBlockImage(dest, drect, firetile, 0, 0, B);
@@ -961,8 +971,6 @@ void drawFire(RGBAImage& dest, const ImageRect& drect, const RGBAImage& firetile
 
 
 
-
-const int BlockImages::NUMIMAGES = 229;
 
 int offsetIdx(uint8_t blockID, uint8_t blockData)
 {
@@ -1034,6 +1042,14 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(23, 5)] = 225;
 	setOffsetsForID(24, 226, *this);
 	setOffsetsForID(25, 227, *this);
+	setOffsetsForID(26, 236, *this);
+	blockOffsets[offsetIdx(26, 1)] = 237;
+	blockOffsets[offsetIdx(26, 2)] = 238;
+	blockOffsets[offsetIdx(26, 3)] = 239;
+	blockOffsets[offsetIdx(26, 8)] = 232;
+	blockOffsets[offsetIdx(26, 9)] = 233;
+	blockOffsets[offsetIdx(26, 10)] = 234;
+	blockOffsets[offsetIdx(26, 11)] = 235;
 	blockOffsets[offsetIdx(35, 0)] = 29;
 	blockOffsets[offsetIdx(35, 1)] = 204;
 	blockOffsets[offsetIdx(35, 2)] = 205;
@@ -1057,7 +1073,13 @@ void BlockImages::setOffsets()
 	setOffsetsForID(41, 34, *this);
 	setOffsetsForID(42, 35, *this);
 	setOffsetsForID(43, 36, *this);
+	blockOffsets[offsetIdx(43, 1)] = 226;
+	blockOffsets[offsetIdx(43, 2)] = 5;
+	blockOffsets[offsetIdx(43, 3)] = 4;
 	setOffsetsForID(44, 37, *this);
+	blockOffsets[offsetIdx(44, 1)] = 229;
+	blockOffsets[offsetIdx(44, 2)] = 230;
+	blockOffsets[offsetIdx(44, 3)] = 231;
 	setOffsetsForID(45, 38, *this);
 	setOffsetsForID(46, 39, *this);
 	setOffsetsForID(47, 40, *this);
@@ -1216,16 +1238,42 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(91, 1)] = 155;
 	blockOffsets[offsetIdx(91, 3)] = 156;
 	setOffsetsForID(92, 228, *this);
+	setOffsetsForID(93, 247, *this);
+	blockOffsets[offsetIdx(93, 1)] = 244;
+	blockOffsets[offsetIdx(93, 5)] = 244;
+	blockOffsets[offsetIdx(93, 9)] = 244;
+	blockOffsets[offsetIdx(93, 13)] = 244;
+	blockOffsets[offsetIdx(93, 2)] = 246;
+	blockOffsets[offsetIdx(93, 6)] = 246;
+	blockOffsets[offsetIdx(93, 10)] = 246;
+	blockOffsets[offsetIdx(93, 14)] = 246;
+	blockOffsets[offsetIdx(93, 3)] = 245;
+	blockOffsets[offsetIdx(93, 7)] = 245;
+	blockOffsets[offsetIdx(93, 11)] = 245;
+	blockOffsets[offsetIdx(93, 15)] = 245;
+	setOffsetsForID(94, 243, *this);
+	blockOffsets[offsetIdx(94, 1)] = 240;
+	blockOffsets[offsetIdx(94, 5)] = 240;
+	blockOffsets[offsetIdx(94, 9)] = 240;
+	blockOffsets[offsetIdx(94, 13)] = 240;
+	blockOffsets[offsetIdx(94, 2)] = 242;
+	blockOffsets[offsetIdx(94, 6)] = 242;
+	blockOffsets[offsetIdx(94, 10)] = 242;
+	blockOffsets[offsetIdx(94, 14)] = 242;
+	blockOffsets[offsetIdx(94, 3)] = 241;
+	blockOffsets[offsetIdx(94, 7)] = 241;
+	blockOffsets[offsetIdx(94, 11)] = 241;
+	blockOffsets[offsetIdx(94, 15)] = 241;
 }
 
 void BlockImages::checkOpacityAndTransparency(int B)
 {
 	opacity.clear();
-	opacity.resize(NUMIMAGES, true);
+	opacity.resize(NUMBLOCKIMAGES, true);
 	transparency.clear();
-	transparency.resize(NUMIMAGES, true);
+	transparency.resize(NUMBLOCKIMAGES, true);
 
-	for (int i = 0; i < NUMIMAGES; i++)
+	for (int i = 0; i < NUMBLOCKIMAGES; i++)
 	{
 		ImageRect rect = getRect(i);
 		// use the face iterators to examine the N, W, and U faces; any non-100% alpha makes
@@ -1273,7 +1321,7 @@ void BlockImages::checkOpacityAndTransparency(int B)
 
 void BlockImages::retouchAlphas(int B)
 {
-	for (int i = 0; i < NUMIMAGES; i++)
+	for (int i = 0; i < NUMBLOCKIMAGES; i++)
 	{
 		ImageRect rect = getRect(i);
 		// use the face iterators to examine the N, W, and U faces; any alpha under 10 is changed
@@ -1333,9 +1381,10 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	firetile.create(2*B, 2*B);
 	resize(fire, ImageRect(0, 0, fire.w, fire.h), firetile, ImageRect(0, 0, 2*B, 2*B));
 
-	// colorize the grass and leaves tiles
+	// colorize various tiles
 	darken(tiles, ImageRect(0, 0, 2*B, 2*B), 0.6, 0.95, 0.3);  // tile 0 = grass top
 	darken(tiles, ImageRect(8*B, 6*B, 2*B, 2*B), 0.3, 1.0, 0.1);  // tile 52 = leaves
+	darken(tiles, ImageRect(8*B, 20*B, 2*B, 2*B), 0.9, 0.1, 0.1);  // tile 164 = redstone dust
 
 	// calculate the pixel offset used for cactus/cake; represents one pixel of the default
 	//  16x16 texture size
@@ -1351,13 +1400,12 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	// ...and the same thing for the cake tiles
 	resize(terrain, ImageRect(9*terrainSize + smallOffset, 7*terrainSize + smallOffset, terrainSize - 2*smallOffset, terrainSize - 2*smallOffset),
 	       tiles, ImageRect(9*2*B, 7*2*B, 2*B, 2*B));
-	// put the side of the cake on the bottom half instead of the top to make drawing easier
-	resize(terrain, ImageRect(10*terrainSize + smallOffset, 7*terrainSize, terrainSize - 2*smallOffset, terrainSize / 2),
-	       tiles, ImageRect(10*2*B, 7*2*B + B, 2*B, B));
+	resize(terrain, ImageRect(10*terrainSize + smallOffset, 7*terrainSize, terrainSize - 2*smallOffset, terrainSize),
+	       tiles, ImageRect(10*2*B, 7*2*B, 2*B, 2*B));
 
 
 	// initialize image
-	img.create(rectsize * 16, (NUMIMAGES/16 + 1) * rectsize);
+	img.create(rectsize * 16, (NUMBLOCKIMAGES/16 + 1) * rectsize);
 
 	// build all block images
 
@@ -1365,7 +1413,7 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawBlockImage(img, getRect(2), tiles, 3, 3, 0, B);  // grass
 	drawBlockImage(img, getRect(3), tiles, 2, 2, 2, B);  // dirt
 	drawBlockImage(img, getRect(4), tiles, 16, 16, 16, B);  // cobblestone
-	drawBlockImage(img, getRect(5), tiles, 4, 4, 4, B);  // wood
+	drawBlockImage(img, getRect(5), tiles, 4, 4, 4, B);  // planks
 	drawBlockImage(img, getRect(7), tiles, 17, 17, 17, B);  // bedrock
 	drawBlockImage(img, getRect(8), tiles, 205, 205, 205, B);  // full water
 	drawBlockImage(img, getRect(157), tiles, -1, -1, 205, B);  // water surface
@@ -1401,7 +1449,7 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawBlockImage(img, getRect(218), tiles, 113, 113, 113, B);  // black wool
 	drawBlockImage(img, getRect(34), tiles, 23, 23, 23, B);  // gold block
 	drawBlockImage(img, getRect(35), tiles, 22, 22, 22, B);  // iron block
-	drawBlockImage(img, getRect(36), tiles, 5, 5, 6, B);  // double step
+	drawBlockImage(img, getRect(36), tiles, 5, 5, 6, B);  // double stone slab
 	drawBlockImage(img, getRect(38), tiles, 7, 7, 7, B);  // brick
 	drawBlockImage(img, getRect(39), tiles, 8, 8, 9, B);  // TNT
 	drawBlockImage(img, getRect(40), tiles, 35, 35, 4, B);  // bookshelf
@@ -1417,7 +1465,7 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawBlockImage(img, getRect(56), tiles, 50, 50, 50, B);  // diamond ore
 	drawBlockImage(img, getRect(57), tiles, 24, 24, 24, B);  // diamond block
 	drawBlockImage(img, getRect(58), tiles, 59, 60, 43, B);  // workbench
-	drawBlockImage(img, getRect(67), tiles, 2, 2, 87, B);  // soil
+	drawBlockImage(img, getRect(67), tiles, 2, 2, 87, B);  // farmland
 	drawBlockImage(img, getRect(183), tiles, 45, 44, 62, B);  // furnace W
 	drawBlockImage(img, getRect(184), tiles, 44, 45, 62, B);  // furnace N
 	drawBlockImage(img, getRect(185), tiles, 45, 45, 62, B);  // furnace E/S
@@ -1436,9 +1484,9 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawBlockImage(img, getRect(135), tiles, 118, 119, 102, B);  // pumpkin facing W
 	drawBlockImage(img, getRect(153), tiles, 118, 118, 102, B);  // pumpkin facing E/S
 	drawBlockImage(img, getRect(154), tiles, 119, 118, 102, B);  // pumpkin facing N
-	drawBlockImage(img, getRect(136), tiles, 103, 103, 103, B);  // netherstone
-	drawBlockImage(img, getRect(137), tiles, 104, 104, 104, B);  // mud
-	drawBlockImage(img, getRect(138), tiles, 105, 105, 105, B);  // lightstone
+	drawBlockImage(img, getRect(136), tiles, 103, 103, 103, B);  // netherrack
+	drawBlockImage(img, getRect(137), tiles, 104, 104, 104, B);  // soul sand
+	drawBlockImage(img, getRect(138), tiles, 105, 105, 105, B);  // glowstone
 	drawBlockImage(img, getRect(140), tiles, 118, 120, 102, B);  // jack-o-lantern W
 	drawBlockImage(img, getRect(155), tiles, 118, 118, 102, B);  // jack-o-lantern E/S
 	drawBlockImage(img, getRect(156), tiles, 120, 118, 102, B);  // jack-o-lantern N
@@ -1450,21 +1498,32 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawBlockImage(img, getRect(226), tiles, 192, 192, 176, B);  // sandstone
 	drawBlockImage(img, getRect(227), tiles, 74, 74, 74, B);  // note block
 
-	drawPartialBlockImage(img, getRect(9), tiles, 205, 205, 205, B, 0.125);  // water level 7
-	drawPartialBlockImage(img, getRect(10), tiles, 205, 205, 205, B, 0.25);  // water level 6
-	drawPartialBlockImage(img, getRect(11), tiles, 205, 205, 205, B, 0.375);  // water level 5
-	drawPartialBlockImage(img, getRect(12), tiles, 205, 205, 205, B, 0.5);  // water level 4
-	drawPartialBlockImage(img, getRect(13), tiles, 205, 205, 205, B, 0.625);  // water level 3
-	drawPartialBlockImage(img, getRect(14), tiles, 205, 205, 205, B, 0.75);  // water level 2
-	drawPartialBlockImage(img, getRect(15), tiles, 205, 205, 205, B, 0.875);  // water level 1
-	drawPartialBlockImage(img, getRect(17), tiles, 237, 237, 237, B, 0.25);  // lava level 3
-	drawPartialBlockImage(img, getRect(18), tiles, 237, 237, 237, B, 0.5);  // lava level 2
-	drawPartialBlockImage(img, getRect(19), tiles, 237, 237, 237, B, 0.75);  // lava level 1
-	drawPartialBlockImage(img, getRect(37), tiles, 5, 5, 6, B, 0.5);  // single step
-	drawPartialBlockImage(img, getRect(110), tiles, 1, 1, 1, B, 0.875);  // stone pressure plate
-	drawPartialBlockImage(img, getRect(119), tiles, 4, 4, 4, B, 0.875);  // wood pressure plate
-	drawPartialBlockImage(img, getRect(127), tiles, 66, 66, 66, B, 0.75);  // snow
-	drawPartialBlockImage(img, getRect(228), tiles, 122, 122, 121, B, 0.5);  // cake
+	drawPartialBlockImage(img, getRect(9), tiles, 205, 205, 205, B, 0.125, 0, 0);  // water level 7
+	drawPartialBlockImage(img, getRect(10), tiles, 205, 205, 205, B, 0.25, 0, 0);  // water level 6
+	drawPartialBlockImage(img, getRect(11), tiles, 205, 205, 205, B, 0.375, 0, 0);  // water level 5
+	drawPartialBlockImage(img, getRect(12), tiles, 205, 205, 205, B, 0.5, 0, 0);  // water level 4
+	drawPartialBlockImage(img, getRect(13), tiles, 205, 205, 205, B, 0.625, 0, 0);  // water level 3
+	drawPartialBlockImage(img, getRect(14), tiles, 205, 205, 205, B, 0.75, 0, 0);  // water level 2
+	drawPartialBlockImage(img, getRect(15), tiles, 205, 205, 205, B, 0.875, 0, 0);  // water level 1
+	drawPartialBlockImage(img, getRect(17), tiles, 237, 237, 237, B, 0.25, 0, 0);  // lava level 3
+	drawPartialBlockImage(img, getRect(18), tiles, 237, 237, 237, B, 0.5, 0, 0);  // lava level 2
+	drawPartialBlockImage(img, getRect(19), tiles, 237, 237, 237, B, 0.75, 0, 0);  // lava level 1
+	drawPartialBlockImage(img, getRect(37), tiles, 5, 5, 6, B, 0.5, 0, 0);  // stone slab
+	drawPartialBlockImage(img, getRect(229), tiles, 192, 192, 176, B, 0.5, 0, 0);  // sandstone slab
+	drawPartialBlockImage(img, getRect(230), tiles, 4, 4, 4, B, 0.5, 0, 0);  // wooden slab
+	drawPartialBlockImage(img, getRect(231), tiles, 16, 16, 16, B, 0.5, 0, 0);  // cobble slab
+	drawPartialBlockImage(img, getRect(110), tiles, 1, 1, 1, B, 0.875, 0, 0);  // stone pressure plate
+	drawPartialBlockImage(img, getRect(119), tiles, 4, 4, 4, B, 0.875, 0, 0);  // wood pressure plate
+	drawPartialBlockImage(img, getRect(127), tiles, 66, 66, 66, B, 0.75, 0, 0);  // snow
+	drawPartialBlockImage(img, getRect(228), tiles, 122, 122, 121, B, 0.5, 0, 0);  // cake
+	drawPartialBlockImage(img, getRect(232), tiles, 151, 152, 135, B, 0.5, 0, 0);  // bed head W
+	drawPartialBlockImage(img, getRect(233), tiles, 152, 151, 135, B, 0.5, 3, 2);  // bed head N
+	drawPartialBlockImage(img, getRect(234), tiles, 151, -1, 135, B, 0.5, 2, 1);  // bed head E
+	drawPartialBlockImage(img, getRect(235), tiles, -1, 151, 135, B, 0.5, 1, 0);  // bed head S
+	drawPartialBlockImage(img, getRect(236), tiles, 150, -1, 134, B, 0.5, 0, 0);  // bed foot W
+	drawPartialBlockImage(img, getRect(237), tiles, -1, 150, 134, B, 0.5, 3, 2);  // bed foot N
+	drawPartialBlockImage(img, getRect(238), tiles, 150, 149, 134, B, 0.5, 2, 1);  // bed foot E
+	drawPartialBlockImage(img, getRect(239), tiles, 149, 150, 134, B, 0.5, 1, 0);  // bed foot S
 
 	drawItemBlockImage(img, getRect(6), tiles, 15, B);  // sapling
 	drawItemBlockImage(img, getRect(30), tiles, 13, B);  // yellow flower
@@ -1537,7 +1596,7 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawStairsW(img, getRect(98), tiles, 16, B);  // cobble stairs asc W
 	drawStairsE(img, getRect(99), tiles, 16, B);  // cobble stairs asc E
 
-	drawFloorBlockImage(img, getRect(55), tiles, 100, 0, B);  // redstone wire NSEW
+	drawFloorBlockImage(img, getRect(55), tiles, 164, 0, B);  // redstone wire NSEW
 	drawFloorBlockImage(img, getRect(86), tiles, 128, 1, B);  // track EW
 	drawFloorBlockImage(img, getRect(87), tiles, 128, 0, B);  // track NS
 	drawFloorBlockImage(img, getRect(92), tiles, 112, 1, B);  // track NE corner
@@ -1578,6 +1637,15 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawWallLever(img, getRect(197), tiles, 2, B);  // wall lever facing E
 	drawFloorLeverEW(img, getRect(198), tiles, B);  // ground lever EW
 	drawFloorLeverNS(img, getRect(199), tiles, B);  // ground lever NS
+
+	drawRepeater(img, getRect(240), tiles, 147, 0, B);  // repeater on N
+	drawRepeater(img, getRect(241), tiles, 147, 2, B);  // repeater on S
+	drawRepeater(img, getRect(242), tiles, 147, 3, B);  // repeater on E
+	drawRepeater(img, getRect(243), tiles, 147, 1, B);  // repeater on W
+	drawRepeater(img, getRect(244), tiles, 131, 0, B);  // repeater on N
+	drawRepeater(img, getRect(245), tiles, 131, 2, B);  // repeater on S
+	drawRepeater(img, getRect(246), tiles, 131, 3, B);  // repeater on E
+	drawRepeater(img, getRect(247), tiles, 131, 1, B);  // repeater on W
 
 	drawFire(img, getRect(189), firetile, B);  // fire
 
