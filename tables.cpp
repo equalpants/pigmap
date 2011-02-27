@@ -1,4 +1,4 @@
-// Copyright 2010 Michael J. Nelson
+// Copyright 2010, 2011 Michael J. Nelson
 //
 // This file is part of pigmap.
 //
@@ -362,4 +362,70 @@ void TileGroupIterator::advance()
 		}
 	}
 	end = true;
+}
+
+
+
+
+
+void RegionGroup::setRequired(const PosRegionIdx& ri)
+{
+	int rsi = regionSetIdx(ri);
+	if (regionsets[rsi] == NULL)
+		regionsets[rsi] = new RegionSet;
+	regionsets[rsi]->setRequired(ri);
+}
+
+void RegionGroup::setFailed(const PosRegionIdx& ri)
+{
+	int rsi = regionSetIdx(ri);
+	if (regionsets[rsi] == NULL)
+		regionsets[rsi] = new RegionSet;
+	regionsets[rsi]->setFailed(ri);
+}
+
+PosRegionIdx RegionTable::toPosRegionIdx(int rgi, int rsi, int bi)
+{
+	PosRegionIdx ri(0,0);
+	ri.x += (rgi % RTLEVEL3SIZE) * RTLEVEL1SIZE * RTLEVEL2SIZE;
+	ri.z += (rgi / RTLEVEL3SIZE) * RTLEVEL1SIZE * RTLEVEL2SIZE;
+	ri.x += (rsi % RTLEVEL2SIZE) * RTLEVEL1SIZE;
+	ri.z += (rsi / RTLEVEL2SIZE) * RTLEVEL1SIZE;
+	ri.x += ((bi / RTDATASIZE) % RTLEVEL1SIZE);
+	ri.z += ((bi / RTDATASIZE) / RTLEVEL1SIZE);
+	return ri;
+}
+
+void RegionTable::setRequired(const PosRegionIdx& ri)
+{
+	int rgi = regionGroupIdx(ri);
+	if (regiongroups[rgi] == NULL)
+		regiongroups[rgi] = new RegionGroup;
+	regiongroups[rgi]->setRequired(ri);
+}
+
+void RegionTable::setFailed(const PosRegionIdx& ri)
+{
+	int rgi = regionGroupIdx(ri);
+	if (regiongroups[rgi] == NULL)
+		regiongroups[rgi] = new RegionGroup;
+	regiongroups[rgi]->setFailed(ri);
+}
+
+void RegionTable::copyFrom(const RegionTable& rtable)
+{
+	for (int rgi = 0; rgi < RTLEVEL3SIZE*RTLEVEL3SIZE; rgi++)
+	{
+		if (rtable.regiongroups[rgi] != NULL)
+		{
+			regiongroups[rgi] = new RegionGroup;
+			for (int rsi = 0; rsi < RTLEVEL2SIZE*RTLEVEL2SIZE; rsi++)
+			{
+				if (rtable.regiongroups[rgi]->regionsets[rsi] != NULL)
+				{
+					regiongroups[rgi]->regionsets[rsi] = new RegionSet(*(rtable.regiongroups[rgi]->regionsets[rsi]));
+				}
+			}
+		}
+	}
 }

@@ -1,4 +1,4 @@
-// Copyright 2010 Michael J. Nelson
+// Copyright 2010, 2011 Michael J. Nelson
 //
 // This file is part of pigmap.
 //
@@ -48,6 +48,7 @@
 #include "tables.h"
 #include "chunk.h"
 #include "render.h"
+#include "world.h"
 
 using namespace std;
 
@@ -57,16 +58,19 @@ using namespace std;
 
 void printStats(int seconds, const RenderStats& stats)
 {
-	cout << stats.reqchunkcount << " chunks    " << stats.reqtilecount << " base tiles    " << seconds << " seconds" << endl;
+	cout << stats.reqchunkcount << " chunks    " << stats.reqregioncount << " regions   "
+	     << stats.reqtilecount << " base tiles    " << seconds << " seconds" << endl;
 	cout << "chunk cache: " << stats.chunkcache.hits << " hits   " << stats.chunkcache.misses << " misses" << endl;
 	cout << "             " << stats.chunkcache.read << " read   " << stats.chunkcache.skipped << " skipped   " << stats.chunkcache.missing << " missing   "
 	     << stats.chunkcache.reqmissing << " reqmissing   " << stats.chunkcache.corrupt << " corrupt" << endl;
+	cout << "region requests: " << stats.region.read << " read (containing " << stats.region.chunksread << " chunks)   " << stats.region.skipped << " skipped" << endl;
+	cout << "                 " << stats.region.missing << " missing   " << stats.region.reqmissing << " reqmissing   " << stats.region.corrupt << " corrupt" << endl;
 }
 
 void runSingleThread(RenderJob& rj)
 {
 	// allocate storage/caches
-	rj.chunkcache.reset(new ChunkCache(*rj.chunktable, rj.inputpath, rj.fullrender, rj.stats.chunkcache));
+	rj.chunkcache.reset(new ChunkCache(*rj.chunktable, *rj.regiontable, rj.inputpath, rj.fullrender, rj.regionformat, rj.stats.chunkcache, rj.stats.region));
 	rj.tilecache.reset(new TileCache(rj.mp));
 	rj.scenegraph.reset(new SceneGraph);
 	RGBAImage topimg;
@@ -179,6 +183,7 @@ void runMultithreaded(RenderJob& rj, int threads)
 	{
 		rjs[i].testmode = rj.testmode;
 		rjs[i].fullrender = rj.fullrender;
+		rjs[i].regionformat = rj.regionformat;
 		rjs[i].mp = rj.mp;
 		rjs[i].inputpath = rj.inputpath;
 		rjs[i].outputpath = rj.outputpath;
@@ -187,8 +192,10 @@ void runMultithreaded(RenderJob& rj, int threads)
 		rjs[i].chunktable->copyFrom(*rj.chunktable);
 		rjs[i].tiletable.reset(new TileTable);
 		rjs[i].tiletable->copyFrom(*rj.tiletable);
+		rjs[i].regiontable.reset(new RegionTable);
+		rjs[i].regiontable->copyFrom(*rj.regiontable);
 		if (!rjs[i].testmode)
-			rjs[i].chunkcache.reset(new ChunkCache(*rjs[i].chunktable, rjs[i].inputpath, rjs[i].fullrender, rjs[i].stats.chunkcache));
+			rjs[i].chunkcache.reset(new ChunkCache(*rjs[i].chunktable, *rjs[i].regiontable, rjs[i].inputpath, rjs[i].fullrender, rjs[i].regionformat, rjs[i].stats.chunkcache, rjs[i].stats.region));
 		rjs[i].tilecache.reset(new TileCache(rjs[i].mp));
 		if (!rjs[i].testmode)
 			rjs[i].scenegraph.reset(new SceneGraph);
@@ -238,7 +245,10 @@ void runMultithreaded(RenderJob& rj, int threads)
 
 	// combine the thread stats
 	for (int i = 0; i < threads; i++)
+	{
 		rj.stats.chunkcache += rjs[i].stats.chunkcache;
+		rj.stats.region += rjs[i].stats.region;
+	}
 
 	// copy the drawn flags over from the thread TileTables (for the double-check)
 	for (RequiredTileIterator it(*rj.tiletable); !it.end; it.advance())
@@ -375,7 +385,7 @@ void writeHTML(const RenderJob& rj, const string& htmlpath)
 	copyFile(htmlpath + "/style.css", rj.outputpath + "/style.css");
 }
 
-bool performRender(const string& inputpath, const string& outputpath, const string& imgpath, const MapParams& mp, const string& chunklist, int threads, int testworldsize, bool expand, const string& htmlpath)
+bool performRender(const string& inputpath, const string& outputpath, const string& imgpath, const MapParams& mp, const string& chunklist, const string& regionlist, int threads, int testworldsize, bool expand, const string& htmlpath)
 {
 	time_t tstart = time(NULL);
 
@@ -394,6 +404,8 @@ bool performRender(const string& inputpath, const string& outputpath, const stri
 	}
 	rj.chunktable.reset(new ChunkTable);
 	rj.tiletable.reset(new TileTable);
+	rj.regiontable.reset(new RegionTable);
+	rj.regionformat = !rj.testmode && detectRegionFormat(rj.inputpath);
 	// test world
 	if (testworldsize != -1)
 	{
@@ -402,19 +414,36 @@ bool performRender(const string& inputpath, const string& outputpath, const stri
 		makeTestWorld(testworldsize, *rj.chunktable, *rj.tiletable, rj.mp, rj.stats.reqchunkcount, rj.stats.reqtilecount);
 	}
 	// full render
-	else if (chunklist.empty())
+	else if (chunklist.empty() && regionlist.empty())
 	{
 		rj.fullrender = true;
 		cout << "scanning world data..." << endl;
-		if (!makeAllChunksRequired(rj.inputpath, *rj.chunktable, *rj.tiletable, rj.mp, rj.stats.reqchunkcount, rj.stats.reqtilecount))
-			return false;
+		if (rj.regionformat)
+		{
+			if (!makeAllRegionsRequired(rj.inputpath, *rj.chunktable, *rj.tiletable, *rj.regiontable, rj.mp, rj.stats.reqchunkcount, rj.stats.reqtilecount, rj.stats.reqregioncount))
+				return false;
+		}
+		else
+		{
+			if (!makeAllChunksRequired(rj.inputpath, *rj.chunktable, *rj.tiletable, rj.mp, rj.stats.reqchunkcount, rj.stats.reqtilecount))
+				return false;
+		}
 	}
 	// incremental update
 	else
 	{
 		rj.fullrender = false;
-		cout << "processing chunklist..." << endl;
-		int rv = readChunklist(chunklist, *rj.chunktable, *rj.tiletable, rj.mp, rj.stats.reqchunkcount, rj.stats.reqtilecount);
+		int rv;
+		if (rj.regionformat)
+		{
+			cout << "processing regionlist..." << endl;
+			rv = readRegionlist(regionlist, rj.inputpath, *rj.chunktable, *rj.tiletable, *rj.regiontable, rj.mp, rj.stats.reqchunkcount, rj.stats.reqtilecount, rj.stats.reqregioncount);
+		}
+		else
+		{
+			cout << "processing chunklist..." << endl;
+			rv = readChunklist(chunklist, *rj.chunktable, *rj.tiletable, rj.mp, rj.stats.reqchunkcount, rj.stats.reqtilecount);
+		}
 		if (rv == -2)
 			return false;
 		// if we failed because baseZoom is too small, and -x was specified, expand the world and try once more
@@ -426,14 +455,23 @@ bool performRender(const string& inputpath, const string& outputpath, const stri
 			cout << "baseZoom of output map has been increased to " << rj.mp.baseZoom << endl;
 			rj.chunktable.reset(new ChunkTable);
 			rj.tiletable.reset(new TileTable);
-			if (0 != readChunklist(chunklist, *rj.chunktable, *rj.tiletable, rj.mp, rj.stats.reqchunkcount, rj.stats.reqtilecount))
-				return false;
+			rj.regiontable.reset(new RegionTable);
+			if (rj.regionformat)
+			{
+				if (0 != readRegionlist(regionlist, rj.inputpath, *rj.chunktable, *rj.tiletable, *rj.regiontable, rj.mp, rj.stats.reqchunkcount, rj.stats.reqtilecount, rj.stats.reqregioncount))
+					return false;
+			}
+			else
+			{
+				if (0 != readChunklist(chunklist, *rj.chunktable, *rj.tiletable, rj.mp, rj.stats.reqchunkcount, rj.stats.reqtilecount))
+					return false;
+			}
 		}
 	}
 
 	if (rj.stats.reqtilecount == 0)
 	{
-		cout << "nothing to do!  (no required chunks/tiles)" << endl;
+		cout << "nothing to do!  (no required tiles)" << endl;
 		return true;
 	}
 
@@ -717,12 +755,12 @@ void testReqTileCount(const string& inputpath)
 
 //-------------------------------------------------------------------------------------------------------------------
 
-bool validateParamsFull(const string& inputpath, const string& outputpath, const string& imgpath, const MapParams& mp, int threads, const string& chunklist, bool expand, const string& htmlpath)
+bool validateParamsFull(const string& inputpath, const string& outputpath, const string& imgpath, const MapParams& mp, int threads, const string& chunklist, const string& regionlist, bool expand, const string& htmlpath)
 {
 	// -c and -x are not allowed for full renders
-	if (!chunklist.empty() || expand)
+	if (!chunklist.empty() || !regionlist.empty() || expand)
 	{
-		cerr << "-c, -x not allowed for full renders" << endl;
+		cerr << "-c, -r, -x not allowed for full renders" << endl;
 		return false;
 	}
 
@@ -770,7 +808,7 @@ bool validateParamsFull(const string& inputpath, const string& outputpath, const
 }
 
 // also sets MapParams to values from existing map
-bool validateParamsIncremental(const string& inputpath, const string& outputpath, const string& imgpath, MapParams& mp, int threads, const string& chunklist, bool expand, const string& htmlpath)
+bool validateParamsIncremental(const string& inputpath, const string& outputpath, const string& imgpath, MapParams& mp, int threads, const string& chunklist, const string& regionlist, bool expand, const string& htmlpath)
 {
 	// -B, -T, -Z are not allowed
 	if (mp.B != -1 || mp.T != -1 || mp.baseZoom != -1)
@@ -796,6 +834,20 @@ bool validateParamsIncremental(const string& inputpath, const string& outputpath
 		return false;
 	}
 
+	// can't have both chunklist and regionlist
+	if (!chunklist.empty() && !regionlist.empty())
+	{
+		cerr << "only one of -c, -r may be used" << endl;
+		return false;
+	}
+
+	// if world is in region format, must use regionlist
+	if (detectRegionFormat(inputpath) && regionlist.empty())
+	{
+		cerr << "world is in region format; must use -r, not -c" << endl;
+		return false;
+	}
+
 	// pigmap.params must be present in output path; read it now
 	if (!mp.readFile(outputpath))
 	{
@@ -814,12 +866,12 @@ bool validateParamsIncremental(const string& inputpath, const string& outputpath
 	return true;
 }
 
-bool validateParamsTest(const string& inputpath, const string& outputpath, const string& imgpath, const MapParams& mp, int threads, const string& chunklist, bool expand, const string& htmlpath, int testworldsize)
+bool validateParamsTest(const string& inputpath, const string& outputpath, const string& imgpath, const MapParams& mp, int threads, const string& chunklist, const string& regionlist, bool expand, const string& htmlpath, int testworldsize)
 {
-	// -i, -o, -c, -x, -m are not allowed
-	if (!inputpath.empty() || !outputpath.empty() || !chunklist.empty() || expand || htmlpath != ".")
+	// -i, -o, -c, -r, -x, -m are not allowed
+	if (!inputpath.empty() || !outputpath.empty() || !chunklist.empty() || !regionlist.empty() || expand || htmlpath != ".")
 	{
-		cerr << "-i, -o, -c, -x, -m not allowed for test worlds" << endl;
+		cerr << "-i, -o, -c, -r, -x, -m not allowed for test worlds" << endl;
 		return false;
 	}
 
@@ -878,14 +930,14 @@ int main(int argc, char **argv)
 	//testTileIdxs();
 	//testReqTileCount(inputpath);
 
-	string inputpath, outputpath, imgpath = ".", chunklist, htmlpath = ".";
+	string inputpath, outputpath, imgpath = ".", chunklist, regionlist, htmlpath = ".";
 	MapParams mp(-1,-1,-1);
 	int threads = 1;
 	int testworldsize = -1;
 	bool expand = false;
 
 	int c;
-	while ((c = getopt(argc, argv, "i:o:g:c:B:T:Z:h:w:xm:")) != -1)
+	while ((c = getopt(argc, argv, "i:o:g:c:B:T:Z:h:w:xm:r:")) != -1)
 	{
 		switch (c)
 		{
@@ -900,6 +952,9 @@ int main(int argc, char **argv)
 				break;
 			case 'c':
 				chunklist = optarg;
+				break;
+			case 'r':
+				regionlist = optarg;
 				break;
 			case 'B':
 				mp.B = atoi(optarg);
@@ -933,21 +988,21 @@ int main(int argc, char **argv)
 
 	if (testworldsize != -1)
 	{
-		if (!validateParamsTest(inputpath, outputpath, imgpath, mp, threads, chunklist, expand, htmlpath, testworldsize))
+		if (!validateParamsTest(inputpath, outputpath, imgpath, mp, threads, chunklist, regionlist, expand, htmlpath, testworldsize))
 			return 1;
 	}
-	else if (chunklist.empty())
+	else if (chunklist.empty() && regionlist.empty())
 	{
-		if (!validateParamsFull(inputpath, outputpath, imgpath, mp, threads, chunklist, expand, htmlpath))
+		if (!validateParamsFull(inputpath, outputpath, imgpath, mp, threads, chunklist, regionlist, expand, htmlpath))
 			return 1;
 	}
 	else
 	{
-		if (!validateParamsIncremental(inputpath, outputpath, imgpath, mp, threads, chunklist, expand, htmlpath))
+		if (!validateParamsIncremental(inputpath, outputpath, imgpath, mp, threads, chunklist, regionlist, expand, htmlpath))
 			return 1;
 	}
 
-	if (!performRender(inputpath, outputpath, imgpath, mp, chunklist, threads, testworldsize, expand, htmlpath))
+	if (!performRender(inputpath, outputpath, imgpath, mp, chunklist, regionlist, threads, testworldsize, expand, htmlpath))
 		return 1;
 
 	return 0;

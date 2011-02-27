@@ -24,6 +24,9 @@ Andrew Brown and contributors).
 
 Change log (important stuff only):
 
+0.7
+-Minecraft Beta 1.3 support: new region file format, beds, repeaters, slabs
+
 0.6.1
 -support for HD texture packs
 
@@ -67,9 +70,9 @@ pigmap -B 6 -T 1 -Z 10 -i input/World1 -o output/World1 -g images -h 3
 
 incremental update:
 
-pigmap -i input/World1 -o output/World1 -c chunklist -h 3 -x
+pigmap -i input/World1 -o output/World1 -r regionlist -h 3 -x
 
-...updates an existing map by redrawing any tiles touched by chunks listed in the file "chunklist",
+...updates an existing map by redrawing any tiles touched by regions listed in the file "regionlist",
 with the input and output dirs as before.  Terrain images are read from the path ".", and 3 threads
 are used.  Map parameters are read from the existing map, and if the existing baseZoom is too small,
 it will be incremented.
@@ -88,11 +91,14 @@ Explanation of command-line options:
 
 a. input path, output path (-i, -o)
 
-The chunk input path should be the top directory of the world data (i.e. where level.dat is).  The tile
+The input path should be the top directory of the world data (i.e. where level.dat is).  The tile
 output path should be the top of the Google Maps directory structure (i.e. where base.png is).  Tile
 images will be written to the output path, along with a file "pigmap.params" which remembers what
 parameters the map was drawn with.  For incremental updates, the output path must exist already, and
 must contain the pigmap.params file.
+
+Both the newer region-based world format and the older chunk-based world format are supported.  (If
+the input path somehow contains *both* formats, only the region data will be used.)
 
 b. [optional] HTML source path (-m)
 
@@ -161,11 +167,16 @@ If baseZoom is omitted, it will be set to the lowest value that can fit all the 
 
 3. Params for incremental updates only:
 
-a. chunklist file (-c)
+a. regionlist file (-r) or chunklist file (-c)
 
-The name of a text file containing the filenames of chunks that should be updated, one per line.
-Supplied filenames can have a relative or absolute path or can just be the file name; only the name
-will be examined.
+The name of a text file containing the filenames of regions or chunks that should be updated, one per
+line.  Supplied filenames can have a relative or absolute path or can just be the file name; only the
+name will be examined.
+
+The choice of regionlist/chunklist must match the current format of the input world (if the world
+is in region format, a regionlist must be supplied).  The current format does *not* have to match the
+world format used in the previous map render, however; a normal incremental update will work fine
+even if you've converted the world from chunk to region format since the last render.
 
 b. [optional] expand map if necessary (-x)
 

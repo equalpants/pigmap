@@ -1,4 +1,4 @@
-// Copyright 2010 Michael J. Nelson
+// Copyright 2010, 2011 Michael J. Nelson
 //
 // This file is part of pigmap.
 //
@@ -31,10 +31,11 @@
 
 struct RenderStats
 {
-	int64_t reqchunkcount, reqtilecount;  // number of required chunks and base tiles
+	int64_t reqchunkcount, reqregioncount, reqtilecount;  // number of required chunks/regions and base tiles
 	ChunkCacheStats chunkcache;
+	RegionStats region;
 
-	RenderStats() : reqchunkcount(0), reqtilecount(0) {}
+	RenderStats() : reqchunkcount(0), reqregioncount(0), reqtilecount(0) {}
 };
 
 
@@ -45,11 +46,13 @@ struct ThreadOutputCache;
 struct RenderJob : private nocopy
 {
 	bool fullrender;  // whether we're doing the entire world, as opposed to an incremental update
+	bool regionformat;  // whether the world is in region format (chunk format assumed if not)
 	MapParams mp;
 	std::string inputpath, outputpath;
 	BlockImages blockimages;
 	std::auto_ptr<ChunkTable> chunktable;
 	std::auto_ptr<ChunkCache> chunkcache;
+	std::auto_ptr<RegionTable> regiontable;
 	std::auto_ptr<TileTable> tiletable;
 	std::auto_ptr<TileCache> tilecache;
 	std::auto_ptr<SceneGraph> scenegraph;  // reuse this for each tile to avoid reallocation

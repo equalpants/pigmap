@@ -1,4 +1,4 @@
-// Copyright 2010 Michael J. Nelson
+// Copyright 2010, 2011 Michael J. Nelson
 //
 // This file is part of pigmap.
 //
@@ -33,9 +33,20 @@ void copyFile(const std::string& oldpath, const std::string& newpath);
 // ...returns relative paths beginning with dirpath; appends results to vector
 void listEntries(const std::string& dirpath, std::vector<std::string>& entries);
 
-// -read a gzipped file into a buffer, overwriting its contents, and expanding it if necessary
+bool dirExists(const std::string& dirpath);
+
+// -read a gzipped file into a vector, overwriting its contents, and expanding it if necessary
 // -return 0 on success, -1 for nonexistent file, -2 for other errors
 int readGzFile(const std::string& filename, std::vector<uint8_t>& data);
+
+// extract gzip- or zlib-compressed data into a vector, overwriting its contents, and
+//  expanding it if necessary
+// (inbuf is not const only because zlib won't take const pointers for input)
+bool readGzOrZlib(uint8_t* inbuf, size_t size, std::vector<uint8_t>& data);
+
+
+// convert a big-endian int into whatever the current platform endianness is
+uint32_t fromBigEndian(uint32_t i);
 
 
 // floored division; real value of a/b is floored instead of truncated toward 0
@@ -58,6 +69,9 @@ int64_t fromBase36(const std::string& s);
 std::string toBase36(int64_t i);
 
 std::string tostring(int i);
+std::string tostring(int64_t i);
+bool fromstring(const std::string& s, int64_t& result);
+
 
 // replace all occurrences of oldstr in text with newstr; return false if none found
 bool replace(std::string& text, const std::string& oldstr, const std::string& newstr);

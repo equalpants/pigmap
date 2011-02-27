@@ -1,4 +1,4 @@
-// Copyright 2010 Michael J. Nelson
+// Copyright 2010, 2011 Michael J. Nelson
 //
 // This file is part of pigmap.
 //
@@ -285,6 +285,90 @@ struct TileGroupIterator
 
 	// move to the next non-NULL TileGroup, or to the end
 	void advance();
+};
+
+
+
+
+#define RTDATASIZE 2
+
+#define RTLEVEL1BITS 4
+#define RTLEVEL2BITS 4
+#define RTLEVEL3BITS 6
+
+#define RTLEVEL1SIZE (1 << RTLEVEL1BITS)
+#define RTLEVEL2SIZE (1 << RTLEVEL2BITS)
+#define RTLEVEL3SIZE (1 << RTLEVEL3BITS)
+#define RTTOTALSIZE (RTLEVEL1SIZE * RTLEVEL2SIZE * RTLEVEL3SIZE)
+
+#define RTLEVEL1MASK (RTLEVEL1SIZE - 1)
+#define RTLEVEL2MASK ((RTLEVEL2SIZE - 1) << RTLEVEL1BITS)
+#define RTLEVEL3MASK (((RTLEVEL3SIZE - 1) << RTLEVEL1BITS) << RTLEVEL2BITS)
+
+#define RTGETLEVEL1(a) (a & RTLEVEL1MASK)
+#define RTGETLEVEL2(a) ((a & RTLEVEL2MASK) >> RTLEVEL1BITS)
+#define RTGETLEVEL3(a) (((a & RTLEVEL3MASK) >> RTLEVEL2BITS) >> RTLEVEL1BITS)
+
+struct PosRegionIdx
+{
+	int64_t x, z;
+
+	PosRegionIdx(int64_t xx, int64_t zz) : x(xx), z(zz) {}
+	PosRegionIdx(const RegionIdx& ri) : x(ri.x + RTTOTALSIZE/2), z(ri.z + RTTOTALSIZE/2) {}
+	RegionIdx toRegionIdx() const {return RegionIdx(x - RTTOTALSIZE/2, z - RTTOTALSIZE/2);}
+	bool valid() const {return x >= 0 && x < RTTOTALSIZE && z >= 0 && z < RTTOTALSIZE;}
+
+	bool operator==(const PosRegionIdx& ri) const {return x == ri.x && z == ri.z;}
+	bool operator!=(const PosRegionIdx& ri) const {return !operator==(ri);}
+};
+
+struct RegionSet
+{
+	// each region gets two bits: first is whether it's required, second is whether it has already failed to
+	//  read from disk (either by being missing or corrupted)
+	std::bitset<RTLEVEL1SIZE*RTLEVEL1SIZE*RTDATASIZE> bits;
+
+	size_t bitIdx(const PosRegionIdx& ri) const {return (RTGETLEVEL1(ri.z) * RTLEVEL1SIZE + RTGETLEVEL1(ri.x)) * RTDATASIZE;}
+
+	void setRequired(const PosRegionIdx& ri) {bits.set(bitIdx(ri));}
+	void setFailed(const PosRegionIdx& ri) {bits.set(bitIdx(ri)+1);}
+};
+
+struct RegionGroup
+{
+	RegionSet *regionsets[RTLEVEL2SIZE*RTLEVEL2SIZE];
+
+	RegionGroup() {for (int i = 0; i < RTLEVEL2SIZE*RTLEVEL2SIZE; i++) regionsets[i] = NULL;}
+	~RegionGroup() {for (int i = 0; i < RTLEVEL2SIZE*RTLEVEL2SIZE; i++) if (regionsets[i] != NULL) delete regionsets[i];}
+
+	int regionSetIdx(const PosRegionIdx& ri) const {return RTGETLEVEL2(ri.z) * RTLEVEL2SIZE + RTGETLEVEL2(ri.x);}
+	RegionSet* getRegionSet(const PosRegionIdx& ri) const {return regionsets[regionSetIdx(ri)];}
+
+	void setRequired(const PosRegionIdx& ri);
+	void setFailed(const PosRegionIdx& ri);
+};
+
+struct RegionTable : private nocopy
+{
+	RegionGroup *regiongroups[RTLEVEL3SIZE*RTLEVEL3SIZE];
+
+	RegionTable() {for (int i = 0; i < RTLEVEL3SIZE*RTLEVEL3SIZE; i++) regiongroups[i] = NULL;}
+	~RegionTable() {for (int i = 0; i < RTLEVEL3SIZE*RTLEVEL3SIZE; i++) if (regiongroups[i] != NULL) delete regiongroups[i];}
+
+	int regionGroupIdx(const PosRegionIdx& ri) const {return RTGETLEVEL3(ri.z) * RTLEVEL3SIZE + RTGETLEVEL3(ri.x);}
+	RegionGroup* getRegionGroup(const PosRegionIdx& ri) const {return regiongroups[regionGroupIdx(ri)];}
+	RegionSet* getRegionSet(const PosRegionIdx& ri) const {RegionGroup *rg = getRegionGroup(ri); return (rg == NULL) ? NULL : rg->getRegionSet(ri);}
+
+	// given indices into the RegionGroups/RegionSets/bitset, construct a PosRegionIdx
+	static PosRegionIdx toPosRegionIdx(int rgi, int rsi, int bi);
+	
+	bool isRequired(const PosRegionIdx& ri) const {RegionSet *rs = getRegionSet(ri); return (rs == NULL) ? false : rs->bits[rs->bitIdx(ri)];}
+	bool hasFailed(const PosRegionIdx& ri) const {RegionSet *rs = getRegionSet(ri); return (rs == NULL) ? false : rs->bits[rs->bitIdx(ri)+1];}
+
+	void setRequired(const PosRegionIdx& ri);
+	void setFailed(const PosRegionIdx& ri);
+
+	void copyFrom(const RegionTable& rtable);
 };
 
 

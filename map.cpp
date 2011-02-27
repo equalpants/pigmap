@@ -1,4 +1,4 @@
-// Copyright 2010 Michael J. Nelson
+// Copyright 2010, 2011 Michael J. Nelson
 //
 // This file is part of pigmap.
 //
@@ -143,6 +143,11 @@ bool ChunkIdx::fromFilePath(const std::string& filename, ChunkIdx& result)
 		&& fromBase36(filename, pos2 + 1, pos3 - pos2 - 1, result.z);
 }
 
+RegionIdx ChunkIdx::getRegionIdx() const
+{
+	return RegionIdx(floordiv(x, 32), floordiv(z, 32));
+}
+
 //!!!!!!!!!!!!!   this can go faster; the chunk corner centers form a hexagonal grid just
 //                as the block centers do, and whether or not the tiles to the right, down,
 //                etc. are needed can be computed based only on the position within the grid
@@ -178,6 +183,32 @@ vector<TileIdx> ChunkIdx::getTiles(const MapParams& mp) const
 	}
 
 	return tiles;
+}
+
+ChunkIdx operator+(const ChunkIdx& ci1, const ChunkIdx& ci2) {ChunkIdx ci = ci1; return ci += ci2;}
+ChunkIdx operator-(const ChunkIdx& ci1, const ChunkIdx& ci2) {ChunkIdx ci = ci1; return ci -= ci2;}
+
+
+
+string RegionIdx::toFileName() const
+{
+	return "r." + tostring(x) + "." + tostring(z) + ".mcr";
+}
+
+bool RegionIdx::fromFilePath(const std::string& filename, RegionIdx& result)
+{
+	string::size_type pos3 = filename.rfind('.');
+	string::size_type pos2 = filename.rfind('.', pos3 - 1);
+	string::size_type pos = filename.rfind('.', pos2 - 1);
+	// must have three dots, must have only "mcr" after last dot, must have only "r"
+	//  and possibly some directories before the first dot
+	if (pos == string::npos || pos2 == string::npos || pos3 == string::npos ||
+		filename.compare(pos3, filename.size() - pos3, ".mcr") != 0 ||
+		pos < 1 || filename.compare(pos - 1, 1, "r") != 0 ||
+		(pos > 1 && filename[pos - 2] != '/'))
+		return false;
+	return fromstring(filename.substr(pos + 1, pos2 - pos - 1), result.x)
+		&& fromstring(filename.substr(pos2 + 1, pos3 - pos2 - 1), result.z);
 }
 
 

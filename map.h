@@ -1,4 +1,4 @@
-// Copyright 2010 Michael J. Nelson
+// Copyright 2010, 2011 Michael J. Nelson
 //
 // This file is part of pigmap.
 //
@@ -145,6 +145,7 @@
 
 
 struct ChunkIdx;
+struct RegionIdx;
 struct TileIdx;
 struct ZoomTileIdx;
 
@@ -244,11 +245,37 @@ struct ChunkIdx
 
 	BlockIdx baseCorner() const {return BlockIdx(x*16, z*16, 0);}  // NED corner
 	BBox getBBox(const MapParams& mp) const {Pixel c = baseCorner().getCenter(mp); return BBox(c - Pixel(2*mp.B,269*mp.B), c + Pixel(62*mp.B,17*mp.B));}
+	RegionIdx getRegionIdx() const;
 
 	std::vector<TileIdx> getTiles(const MapParams& mp) const;
 
+	ChunkIdx& operator+=(const ChunkIdx& ci) {x += ci.x; z += ci.z; return *this;}
+	ChunkIdx& operator-=(const ChunkIdx& ci) {x -= ci.x; z -= ci.z; return *this;}
 	bool operator==(const ChunkIdx& ci) const {return x == ci.x && z == ci.z;}
 	bool operator!=(const ChunkIdx& ci) const {return !operator==(ci);}
+};
+
+ChunkIdx operator+(const ChunkIdx& ci1, const ChunkIdx& ci2);
+ChunkIdx operator-(const ChunkIdx& ci1, const ChunkIdx& ci2);
+
+struct RegionIdx
+{
+	int64_t x, z;
+
+	RegionIdx(int64_t xx, int64_t zz) : x(xx), z(zz) {}
+
+	// just the filename (e.g. "r.-1.2.mcr")
+	std::string toFileName() const;
+
+	// see if a path is a valid region file and return its RegionIdx if so
+	// ...can be plain filename, relative path, or absolute path; region coords
+	//  depend only on the filename
+	static bool fromFilePath(const std::string& filename, RegionIdx& result);
+
+	ChunkIdx baseChunk() const {return ChunkIdx(x*32, z*32);}  // NE corner
+
+	bool operator==(const RegionIdx& ri) const {return x == ri.x && z == ri.z;}
+	bool operator!=(const RegionIdx& ri) const {return !operator==(ri);}
 };
 
 // these guys represent tiles at the base zoom level

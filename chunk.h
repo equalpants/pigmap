@@ -1,4 +1,4 @@
-// Copyright 2010 Michael J. Nelson
+// Copyright 2010, 2011 Michael J. Nelson
 //
 // This file is part of pigmap.
 //
@@ -25,25 +25,7 @@
 
 #include "map.h"
 #include "tables.h"
-
-
-
-// find all chunks on disk, set them to required in the ChunkTable, and set all tiles they
-//  touch to required in the TileTable
-// returns false if the world is too big to fit in one of the tables
-// if mp.baseZoom is set to -1 coming in, then this function will set it to the smallest zoom
-//  that can fit everything
-bool makeAllChunksRequired(const std::string& inputdir, ChunkTable& chunktable, TileTable& tiletable, MapParams& mp, int64_t& reqchunkcount, int64_t& reqtilecount);
-
-// read a list of chunk filenames from a file and set the chunks to required in the ChunkTable, and set
-//  any tiles they touch to required in the TileTable
-// returns 0 on success, -1 if baseZoom is too small, -2 for other errors (can't read chunklist, world too big
-//  for our internal data structures, etc.)
-int readChunklist(const std::string& chunklist, ChunkTable& chunktable, TileTable& tiletable, const MapParams& mp, int64_t& reqchunkcount, int64_t& reqtilecount);
-
-// build a test world by making approximately size chunks required
-// if mp.baseZoom is set to -1 coming in, it will be set to the smallest zoom that can fit everything
-void makeTestWorld(int size, ChunkTable& chunktable, TileTable& tiletable, MapParams& mp, int64_t& reqchunkcount, int64_t& reqtilecount);
+#include "region.h"
 
 
 
@@ -81,7 +63,6 @@ struct ChunkData
 
 
 
-
 struct ChunkCacheStats
 {
 	int64_t hits, misses;
@@ -92,9 +73,32 @@ struct ChunkCacheStats
 	int64_t reqmissing;  // required chunk not present on disk
 	int64_t corrupt;  // found on disk, but failed to read
 
+	// when in region mode, the miss stats have slightly different meanings:
+	//  read: caused region file to be read, and chunk was then successfully read from region
+	//  missing: not present in the region file, or region file missing/corrupt
+	//  corrupt: region file itself is okay, but chunk data within it is corrupt
+	//  skipped/reqmissing: unused
+	// ...also note that each read of a region file dumps *all* of the region's chunks into the
+	//  cache, so the read statistic here should usually be much smaller than the total number of
+	//  chunks in the world
+
 	ChunkCacheStats() : hits(0), misses(0), read(0), skipped(0), missing(0), reqmissing(0), corrupt(0) {}
 
 	ChunkCacheStats& operator+=(const ChunkCacheStats& ccs);
+};
+
+struct RegionStats
+{
+	int64_t read;  // successfully read from disk
+	int64_t chunksread;  // total number of chunks brought in from region file reads
+	int64_t skipped;  // assumed not to exist because not required in a full render
+	int64_t missing;  // non-required region not found on disk
+	int64_t reqmissing;  // required region not found on disk
+	int64_t corrupt;  // found on disk, but failed to read
+
+	RegionStats() : read(0), chunksread(0), skipped(0), missing(0), reqmissing(0), corrupt(0) {}
+
+	RegionStats& operator+=(const RegionStats& rs);
 };
 
 struct ChunkCacheEntry
@@ -119,36 +123,31 @@ struct ChunkCache : private nocopy
 	ChunkData blankdata;  // for use with missing chunks
 
 	ChunkTable& chunktable;
+	RegionTable& regiontable;
 	ChunkCacheStats& stats;
+	RegionStats& regstats;
 	std::string inputpath;
 	bool fullrender;
+	bool regionformat;
 	std::vector<uint8_t> readbuf;  // buffer for decompressing into when reading
-	ChunkCache(ChunkTable& ctable, const std::string& inpath, bool fullr, ChunkCacheStats& st)
-		: chunktable(ctable), inputpath(inpath), fullrender(fullr), stats(st)
+	RegionFile regionfile;  // buffer for reading region files into
+	ChunkCache(ChunkTable& ctable, RegionTable& rtable, const std::string& inpath, bool fullr, bool regform, ChunkCacheStats& st, RegionStats& rst)
+		: chunktable(ctable), regiontable(rtable), inputpath(inpath), fullrender(fullr), regionformat(regform), stats(st), regstats(rst)
 	{
 		memset(&blankdata, 0, sizeof(ChunkData));
 		readbuf.reserve(131072);
 	}
 
-	static int getEntryNum(const PosChunkIdx& ci) {return (ci.x & CACHEXMASK) * CACHEZSIZE + (ci.z & CACHEZMASK);}
-
 	// look up a chunk and return a pointer to its data
 	// ...for missing/corrupt chunks, return a pointer to some blank data
 	ChunkData* getData(const PosChunkIdx& ci);
 
+	static int getEntryNum(const PosChunkIdx& ci) {return (ci.x & CACHEXMASK) * CACHEZSIZE + (ci.z & CACHEZMASK);}
 
-	// dummy function for testing: doesn't actually read anything from disk, but keeps all the statistics (treats
-	//  required chunks as successful reads, non-required chunks as missing)
-	void testLookup(const PosChunkIdx& ci);
+	void readChunkFile(const PosChunkIdx& ci);
+	void readRegionFile(const PosRegionIdx& ri);
 };
 
-
-
-
-void testChunkCache();
-
-// get the filepaths of all chunks on disk
-void findAllChunks(const std::string& inputdir, std::vector<std::string>& chunkpaths);
 
 
 

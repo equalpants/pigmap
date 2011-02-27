@@ -1,4 +1,4 @@
-// Copyright 2010 Michael J. Nelson
+// Copyright 2010, 2011 Michael J. Nelson
 //
 // This file is part of pigmap.
 //
@@ -76,6 +76,15 @@ void listEntries(const string& dirpath, vector<string>& entries)
 	closedir(dir);
 }
 
+bool dirExists(const string& dirpath)
+{
+	DIR *dir = opendir(dirpath.c_str());
+	if (dir == NULL)
+		return false;
+	closedir(dir);
+	return true;
+}
+
 
 struct gzCloser
 {
@@ -123,6 +132,64 @@ int readGzFile(const string& filename, vector<uint8_t>& data)
 	// resize buffer back down to the end of the actual data
 	data.resize(pos);
 	return 0;
+}
+
+struct inflateEnder
+{
+	z_stream *zstr;
+	inflateEnder(z_stream *zs) : zstr(zs) {}
+	~inflateEnder() {inflateEnd(zstr);}
+};
+
+bool readGzOrZlib(uint8_t *inbuf, size_t size, vector<uint8_t>& data)
+{
+	// start by resizing vector to entire capacity; we'll shrink back down to the
+	//  proper size later
+	data.resize(data.capacity());
+	if (data.empty())
+	{
+		data.resize(131072);
+		data.resize(data.capacity());  // just in case extra space was allocated
+	}
+	// initialize zlib stream
+	z_stream zstr;
+	zstr.next_in = inbuf;
+	zstr.avail_in = size;
+	zstr.next_out = &(data[0]);
+	zstr.avail_out = data.size();
+	zstr.zalloc = Z_NULL;
+	zstr.zfree = Z_NULL;
+	int result = inflateInit2(&zstr, 15 + 32);  // adding 32 to window size means "detect both gzip and zlib"
+	if (result != Z_OK)
+		return false;
+	inflateEnder ie(&zstr);
+	// read as much as we can
+	result = inflate(&zstr, Z_SYNC_FLUSH);
+	while (result != Z_STREAM_END)
+	{
+		// if we failed for some reason other than not having enough room to read into, abort
+		if (result != Z_OK)
+			return false;
+		// reallocate and read more
+		ptrdiff_t diff = zstr.next_out - &(data[0]);
+		size_t addedsize = data.size();
+		data.resize(data.size() + addedsize);
+		data.resize(data.capacity());  // just in case more was allocated
+		zstr.next_out = &(data[0]) + diff;
+		zstr.avail_out += addedsize;
+		result = inflate(&zstr, Z_SYNC_FLUSH);
+	}
+	// resize buffer back down to end of the actual data
+	data.resize(zstr.total_out);
+	return true;
+}
+
+
+
+uint32_t fromBigEndian(uint32_t i)
+{
+	uint8_t *b = (uint8_t*)(&i);
+	return (*b << 24) | (*(b+1) << 16) | (*(b+2) << 8) | (*(b+3));
 }
 
 
@@ -278,7 +345,21 @@ string tostring(int i)
 	return ss.str();
 }
 
-bool replace(std::string& text, const std::string& oldstr, const std::string& newstr)
+string tostring(int64_t i)
+{
+	ostringstream ss;
+	ss << i;
+	return ss.str();
+}
+
+bool fromstring(const string& s, int64_t& result)
+{
+	istringstream ss(s);
+	ss >> result;
+	return !ss.fail();
+}
+
+bool replace(string& text, const string& oldstr, const string& newstr)
 {
 	string::size_type pos = text.find(oldstr);
 	if (pos == string::npos)

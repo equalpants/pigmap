@@ -1,4 +1,4 @@
-// Copyright 2010 Michael J. Nelson
+// Copyright 2010, 2011 Michael J. Nelson
 //
 // This file is part of pigmap.
 //
@@ -21,7 +21,6 @@
 #include <stdint.h>
 
 #include "rgba.h"
-#include "map.h"
 
 
 
@@ -123,9 +122,9 @@ struct BlockImages
 // 0 dummy/air (transparent) 32 brown mushroom         64 wheat level 2          96 cobble stairs asc S
 // 1 stone                   33 red mushroom           65 wheat level 1          97 cobble stairs asc N
 // 2 grass                   34 gold block             66 wheat level 0          98 cobble stairs asc W
-// 3 dirt                    35 iron block             67 soil                   99 cobble stairs asc E
-// 4 cobblestone             36 double step            68 UNUSED                 100 wall sign facing E
-// 5 wood                    37 single step            69 UNUSED                 101 wall sign facing W
+// 3 dirt                    35 iron block             67 farmland               99 cobble stairs asc E
+// 4 cobblestone             36 double stone slab      68 UNUSED                 100 wall sign facing E
+// 5 wood                    37 stone slab             69 UNUSED                 101 wall sign facing W
 // 6 sapling                 38 brick                  70 sign facing N/S        102 wall sign facing N
 // 7 bedrock                 39 TNT                    71 sign facing NE/SW      103 wall sign facing S
 // 8 water full/falling      40 bookshelf              72 sign facing E/W        104 UNUSED               
@@ -161,9 +160,9 @@ struct BlockImages
 // 133 jukebox               165 fence W               197 wall lever facing E
 // 134 fence post            166 fence NW              198 ground lever EW
 // 135 pumpkin facing W      167 fence SW              199 ground lever NS
-// 136 netherstone           168 fence NSW             200 track asc S
-// 137 mud                   169 fence EW              201 track asc N
-// 138 lightstone            170 fence NEW             202 track asc E
+// 136 netherrack            168 fence NSW             200 track asc S
+// 137 soul sand             169 fence EW              201 track asc N
+// 138 glowstone             170 fence NEW             202 track asc E
 // 139 portal                171 fence SEW             203 track asc W
 // 140 jack-o-lantern W      172 fence NSEW            204 orange wool
 // 141 red torch S on        173 double chest N        205 magenta wool
@@ -180,7 +179,7 @@ struct BlockImages
 // 152 UNUSED                184 furnace N             216 green wool
 // 153 pumpkin facing E/S    185 furnace E/S           217 red wool
 // 154 pumpkin facing N      186 lit furnace W         218 black wool
-// 155 jack-o-lantern E/S    187 lit furnace N         219 dark log
+// 155 jack-o-lantern E/S    187 lit furnace N         219 pine log
 // 156 jack-o-lantern N      188 lit furnace E/S       220 birch log
 // 157 water surface         189 fire                  221 lapis ore
 // 158 fence N               190 stone button facing S 222 lapis block
