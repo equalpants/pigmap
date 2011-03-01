@@ -53,7 +53,12 @@ bool makeAllRegionsRequired(const string& topdir, ChunkTable& chunktable, TileTa
 		if (RegionIdx::fromFilePath(*it, ri))
 		{
 			// get the chunks that currently exist in this region; if there aren't any, ignore it
-			vector<ChunkIdx> chunks = getContainedChunks(ri, *it);
+			vector<ChunkIdx> chunks;
+			if (!getContainedChunks(ri, *it, chunks))
+			{
+				cerr << "can't open region " << ri.toFileName() << " to list chunks" << endl;
+				continue;
+			}
 			if (chunks.empty())
 				continue;
 			// mark the region required
@@ -141,7 +146,12 @@ int readRegionlist(const string& regionlist, const string& inputdir, ChunkTable&
 		RegionIdx ri(0,0);
 		if (RegionIdx::fromFilePath(regionfile, ri))
 		{
-			vector<ChunkIdx> chunks = getContainedChunks(ri, inputdir + "/region/" + ri.toFileName());
+			vector<ChunkIdx> chunks;
+			if (!getContainedChunks(ri, inputdir + "/region/" + ri.toFileName(), chunks))
+			{
+				cerr << "can't open region " << ri.toFileName() << " to list chunks" << endl;
+				continue;
+			}
 			if (chunks.empty())
 				continue;
 			PosRegionIdx pri(ri);

@@ -25,16 +25,16 @@ using namespace std;
 
 
 
-vector<ChunkIdx> getContainedChunks(const RegionIdx& ri, const string& filename)
+bool getContainedChunks(const RegionIdx& ri, const string& filename, vector<ChunkIdx>& chunks)
 {
-	vector<ChunkIdx> chunks;
+	chunks.clear();
 	RegionFile regfile;
 	if (0 != regfile.loadHeaderOnly(filename))
-		return chunks;
+		return false;
 	for (RegionChunkIterator it(ri); !it.end; it.advance())
 		if (regfile.containsChunk(it.current))
 			chunks.push_back(it.current);
-	return chunks;
+	return true;
 }
 
 

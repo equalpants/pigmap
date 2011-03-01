@@ -28,7 +28,8 @@
 //  actually currently exist)
 // RegionIdx is needed to compute the ChunkIdxs; filename should be the actual full name of the
 //  region file, including path
-std::vector<ChunkIdx> getContainedChunks(const RegionIdx& ri, const std::string& filename);
+// returns false if region file can't be read
+bool getContainedChunks(const RegionIdx& ri, const std::string& filename, std::vector<ChunkIdx>& chunks);
 
 
 // offset into a region of a chunk

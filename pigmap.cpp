@@ -70,6 +70,7 @@ void printStats(int seconds, const RenderStats& stats)
 
 void runSingleThread(RenderJob& rj)
 {
+	cout << "single thread will render " << rj.stats.reqtilecount << " base tiles" << endl;
 	// allocate storage/caches
 	rj.chunkcache.reset(new ChunkCache(*rj.chunktable, *rj.regiontable, rj.inputpath, rj.fullrender, rj.regionformat, rj.stats.chunkcache, rj.stats.region));
 	rj.tilecache.reset(new TileCache(rj.mp));
@@ -407,6 +408,10 @@ bool performRender(const string& inputpath, const string& outputpath, const stri
 	rj.tiletable.reset(new TileTable);
 	rj.regiontable.reset(new RegionTable);
 	rj.regionformat = !rj.testmode && detectRegionFormat(rj.inputpath);
+	if (rj.regionformat)
+		cout << "region-format world detected" << endl;
+	else
+		cout << "no regions detected; assuming chunk-format world" << endl;
 	// test world
 	if (testworldsize != -1)
 	{
