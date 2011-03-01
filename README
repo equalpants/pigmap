@@ -10,6 +10,7 @@ essentially the same thing, just faster and with fewer fancy options.  Features 
 -incremental map updates, but you must supply your own list of modified chunks (most
   likely via rsync or something similar)
 -multithreading
+-support for Alpha (chunk-based) or Beta (region-based) world formats
 
 pigmap is free under the GPL (please see the file COPYING).  I probably won't add too many
 more features beyond whatever the Aporkalypse might need in the future, but hopefully it will
@@ -23,6 +24,10 @@ Andrew Brown and contributors).
 ---------------------------------------------------------------------------------------------------
 
 Change log (important stuff only):
+
+0.7.1
+-birch and pine leaves
+-more error/logging messages
 
 0.7
 -Minecraft Beta 1.3 support: new region file format, beds, repeaters, slabs
