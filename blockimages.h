@@ -114,7 +114,7 @@ struct BlockImages
 	bool construct(int B, const std::string& terrainfile, const std::string& firefile);
 };
 
-#define NUMBLOCKIMAGES 248
+#define NUMBLOCKIMAGES 250
 
 // block image offsets:
 //
@@ -175,8 +175,8 @@ struct BlockImages
 // 149 UNUSED                181 ice missing W         213 purple wool           245 repeater off S
 // 150 UNUSED                182 ice missing N         214 blue wool             246 repeater off E
 // 151 UNUSED                183 furnace W             215 brown wool            247 repeater off W
-// 152 UNUSED                184 furnace N             216 green wool
-// 153 pumpkin facing E/S    185 furnace E/S           217 red wool
+// 152 UNUSED                184 furnace N             216 green wool            248 pine leaves
+// 153 pumpkin facing E/S    185 furnace E/S           217 red wool              249 birch leaves
 // 154 pumpkin facing N      186 lit furnace W         218 black wool
 // 155 jack-o-lantern E/S    187 lit furnace N         219 pine log
 // 156 jack-o-lantern N      188 lit furnace E/S       220 birch log

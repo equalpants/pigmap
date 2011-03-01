@@ -1032,6 +1032,10 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(17, 1)] = 219;
 	blockOffsets[offsetIdx(17, 2)] = 220;
 	setOffsetsForID(18, 26, *this);
+	blockOffsets[offsetIdx(18, 1)] = 248;
+	blockOffsets[offsetIdx(18, 5)] = 248;
+	blockOffsets[offsetIdx(18, 2)] = 249;
+	blockOffsets[offsetIdx(18, 6)] = 249;
 	setOffsetsForID(19, 27, *this);
 	setOffsetsForID(20, 28, *this);
 	setOffsetsForID(21, 221, *this);
@@ -1383,8 +1387,21 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 
 	// colorize various tiles
 	darken(tiles, ImageRect(0, 0, 2*B, 2*B), 0.6, 0.95, 0.3);  // tile 0 = grass top
-	darken(tiles, ImageRect(8*B, 6*B, 2*B, 2*B), 0.3, 1.0, 0.1);  // tile 52 = leaves
 	darken(tiles, ImageRect(8*B, 20*B, 2*B, 2*B), 0.9, 0.1, 0.1);  // tile 164 = redstone dust
+
+	// create colorized copies of leaf tiles (can't colorize in place because normal and
+	//  birch leaves use the same texture)
+	RGBAImage leaftiles;
+	leaftiles.create(6*B, 2*B);
+	// normal
+	blit(tiles, ImageRect(8*B, 6*B, 2*B, 2*B), leaftiles, 0, 0);
+	darken(leaftiles, ImageRect(0, 0, 2*B, 2*B), 0.3, 1.0, 0.1);
+	// pine
+	blit(tiles, ImageRect(8*B, 16*B, 2*B, 2*B), leaftiles, 2*B, 0);
+	darken(leaftiles, ImageRect(2*B, 0, 2*B, 2*B), 0.3, 1.0, 0.45);
+	// birch
+	blit(tiles, ImageRect(8*B, 6*B, 2*B, 2*B), leaftiles, 4*B, 0);
+	darken(leaftiles, ImageRect(4*B, 0, 2*B, 2*B), 0.55, 0.9, 0.1);
 
 	// calculate the pixel offset used for cactus/cake; represents one pixel of the default
 	//  16x16 texture size
@@ -1428,7 +1445,9 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawBlockImage(img, getRect(25), tiles, 20, 20, 21, B);  // log
 	drawBlockImage(img, getRect(219), tiles, 116, 116, 21, B);  // dark log
 	drawBlockImage(img, getRect(220), tiles, 117, 117, 21, B);  // birch log
-	drawBlockImage(img, getRect(26), tiles, 52, 52, 52, B);  // leaves
+	drawBlockImage(img, getRect(26), leaftiles, 0, 0, 0, B);  // leaves
+	drawBlockImage(img, getRect(248), leaftiles, 1, 1, 1, B);  // pine leaves
+	drawBlockImage(img, getRect(249), leaftiles, 2, 2, 2, B);  // birch leaves
 	drawBlockImage(img, getRect(27), tiles, 48, 48, 48, B);  // sponge
 	drawBlockImage(img, getRect(28), tiles, 49, 49, 49, B);  // glass
 	drawBlockImage(img, getRect(29), tiles, 64, 64, 64, B);  // white wool
