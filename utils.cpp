@@ -192,6 +192,20 @@ uint32_t fromBigEndian(uint32_t i)
 	return (*b << 24) | (*(b+1) << 16) | (*(b+2) << 8) | (*(b+3));
 }
 
+bool isBigEndian()
+{
+	uint32_t i = 0xff000000;
+	uint8_t *b = (uint8_t*)(&i);
+	return *b == 0xff;
+}
+
+void swapEndian(uint32_t& i)
+{
+	uint8_t *b = (uint8_t*)(&i);
+	swap(b[0], b[3]);
+	swap(b[1], b[2]);
+}
+
 
 
 int64_t floordiv(int64_t a, int64_t b)

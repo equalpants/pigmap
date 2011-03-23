@@ -48,6 +48,12 @@ bool readGzOrZlib(uint8_t* inbuf, size_t size, std::vector<uint8_t>& data);
 // convert a big-endian int into whatever the current platform endianness is
 uint32_t fromBigEndian(uint32_t i);
 
+// detect whether the platform is big-endian
+bool isBigEndian();
+
+// switch endianness of an int
+void swapEndian(uint32_t& i);
+
 
 // floored division; real value of a/b is floored instead of truncated toward 0
 int64_t floordiv(int64_t a, int64_t b);

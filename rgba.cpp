@@ -1,4 +1,4 @@
-// Copyright 2010 Michael J. Nelson
+// Copyright 2010, 2011 Michael J. Nelson
 //
 // This file is part of pigmap.
 //
@@ -144,6 +144,12 @@ bool RGBAImage::readPNG(const string& filename)
 	for (int32_t i = 0; i < h; i++, p += w)
 		rowPointers[i] = (png_bytep)p;
 
+	if (isBigEndian())
+	{
+		png_set_bgr(png);
+		png_set_swap_alpha(png);
+	}
+
 	png_read_image(png, rowPointers);
 
 	png_read_end(png, NULL);
@@ -193,7 +199,11 @@ bool RGBAImage::writePNG(const string& filename)
 
 	png_set_rows(png, info, rowPointers);
 
-	png_write_png(png, info, PNG_TRANSFORM_IDENTITY, NULL);
+	if (isBigEndian())
+		png_write_png(png, info, PNG_TRANSFORM_BGR | PNG_TRANSFORM_SWAP_ALPHA, NULL);
+	else
+		png_write_png(png, info, PNG_TRANSFORM_IDENTITY, NULL);
+
 	return true;
 }
 
