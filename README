@@ -23,7 +23,21 @@ Andrew Brown and contributors).
 
 ---------------------------------------------------------------------------------------------------
 
+Supported platforms are Linux and cygwin.  OS X should also be fine, but I haven't tried it
+myself.  (I've heard reports of it working, though.)
+
+Dependencies are zlib, libpng, pthreads, and some very basic system stuff: getopt, mkdir,
+dirent.h.  If your platform has a separate development package for libpng (called libpng-dev,
+libpng-devel, or something like that), you'll need that one, too.
+
+Use supplied makefile to build with g++.
+
+---------------------------------------------------------------------------------------------------
+
 Change log (important stuff only):
+
+0.7.2
+-support for big-endian platforms (like PowerPC)
 
 0.7.1
 -birch and pine leaves
@@ -52,14 +66,6 @@ Change log (important stuff only):
 
 0.5
 -initial version
-
----------------------------------------------------------------------------------------------------
-
-Supported platforms are Linux and cygwin.  (But porting to Windows native or OSX should be easy.)
-
-Use supplied makefile to build with g++.  Depending on the system, it might need to be modified to
-link in some more libraries.  Dependencies are zlib, libpng, pthreads, and some very basic system
-stuff: getopt, mkdir, dirent.h.
 
 ---------------------------------------------------------------------------------------------------
 
