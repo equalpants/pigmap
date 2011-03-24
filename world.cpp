@@ -44,6 +44,7 @@ bool makeAllRegionsRequired(const string& topdir, ChunkTable& chunktable, TileTa
 		mp.baseZoom = 0;
 	reqregioncount = 0;
 	// get all files in the region directory
+	RegionFileReader rfreader;
 	vector<string> regionpaths;
 	listEntries(topdir + "/region", regionpaths);
 	for (vector<string>::const_iterator it = regionpaths.begin(); it != regionpaths.end(); it++)
@@ -54,7 +55,7 @@ bool makeAllRegionsRequired(const string& topdir, ChunkTable& chunktable, TileTa
 		{
 			// get the chunks that currently exist in this region; if there aren't any, ignore it
 			vector<ChunkIdx> chunks;
-			if (!getContainedChunks(ri, *it, chunks))
+			if (!rfreader.getContainedChunks(ri, *it, chunks))
 			{
 				cerr << "can't open region " << ri.toFileName() << " to list chunks" << endl;
 				continue;
@@ -137,6 +138,7 @@ int readRegionlist(const string& regionlist, const string& inputdir, ChunkTable&
 		return -2;
 	}
 	reqregioncount = 0;
+	RegionFileReader rfreader;
 	while (!infile.eof() && !infile.fail())
 	{
 		string regionfile;
@@ -147,7 +149,7 @@ int readRegionlist(const string& regionlist, const string& inputdir, ChunkTable&
 		if (RegionIdx::fromFilePath(regionfile, ri))
 		{
 			vector<ChunkIdx> chunks;
-			if (!getContainedChunks(ri, inputdir + "/region/" + ri.toFileName(), chunks))
+			if (!rfreader.getContainedChunks(ri, inputdir + "/region/" + ri.toFileName(), chunks))
 			{
 				cerr << "can't open region " << ri.toFileName() << " to list chunks" << endl;
 				continue;

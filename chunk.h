@@ -130,7 +130,7 @@ struct ChunkCache : private nocopy
 	bool fullrender;
 	bool regionformat;
 	std::vector<uint8_t> readbuf;  // buffer for decompressing into when reading
-	RegionFile regionfile;  // buffer for reading region files into
+	RegionFileReader regionfile;  // buffer for reading region files into
 	ChunkCache(ChunkTable& ctable, RegionTable& rtable, const std::string& inpath, bool fullr, bool regform, ChunkCacheStats& st, RegionStats& rst)
 		: chunktable(ctable), regiontable(rtable), inputpath(inpath), fullrender(fullr), regionformat(regform), stats(st), regstats(rst)
 	{

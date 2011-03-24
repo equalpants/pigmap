@@ -25,20 +25,6 @@ using namespace std;
 
 
 
-bool getContainedChunks(const RegionIdx& ri, const string& filename, vector<ChunkIdx>& chunks)
-{
-	chunks.clear();
-	RegionFile regfile;
-	if (0 != regfile.loadHeaderOnly(filename))
-		return false;
-	for (RegionChunkIterator it(ri); !it.end; it.advance())
-		if (regfile.containsChunk(it.current))
-			chunks.push_back(it.current);
-	return true;
-}
-
-
-
 struct fcloser
 {
 	FILE *f;
@@ -46,7 +32,7 @@ struct fcloser
 	~fcloser() {fclose(f);}
 };
 
-int RegionFile::loadFromFile(const string& filename)
+int RegionFileReader::loadFromFile(const string& filename)
 {
 	// open file
 	FILE *f = fopen(filename.c_str(), "rb");
@@ -77,7 +63,7 @@ int RegionFile::loadFromFile(const string& filename)
 	return 0;
 }
 
-int RegionFile::loadHeaderOnly(const string& filename)
+int RegionFileReader::loadHeaderOnly(const string& filename)
 {
 	// open file
 	FILE *f = fopen(filename.c_str(), "rb");
@@ -93,7 +79,7 @@ int RegionFile::loadHeaderOnly(const string& filename)
 	return 0;
 }
 
-int RegionFile::decompressChunk(const ChunkOffset& co, vector<uint8_t>& buf)
+int RegionFileReader::decompressChunk(const ChunkOffset& co, vector<uint8_t>& buf)
 {
 	// see if chunk is present
 	if (!containsChunk(co))
@@ -112,6 +98,16 @@ int RegionFile::decompressChunk(const ChunkOffset& co, vector<uint8_t>& buf)
 	return 0;
 }
 
+bool RegionFileReader::getContainedChunks(const RegionIdx& ri, const string& filename, vector<ChunkIdx>& chunks)
+{
+	chunks.clear();
+	if (0 != loadHeaderOnly(filename))
+		return false;
+	for (RegionChunkIterator it(ri); !it.end; it.advance())
+		if (containsChunk(it.current))
+			chunks.push_back(it.current);
+	return true;
+}
 
 
 
