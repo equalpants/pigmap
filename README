@@ -36,6 +36,10 @@ Use supplied makefile to build with g++.
 
 Change log (important stuff only):
 
+0.7.3
+-new blocks for Minecraft Beta 1.4 and 1.5: locked chests, boosters, detectors,
+  pine/birch saplings, webs
+
 0.7.2
 -support for big-endian platforms (like PowerPC)
 

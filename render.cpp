@@ -272,6 +272,15 @@ void checkSpecial(SceneGraphNode& node, uint8_t blockID, uint8_t blockData, cons
 		else if (rj.blockimages.isOpaque(blockIDW, blockDataW))
 			node.bimgoffset = 177;
 	}
+	else if (blockID == 95)  // locked chest
+	{
+		uint8_t blockIDW, blockDataW;
+		GETNEIGHBOR(blockIDW, blockDataW, BlockIdx(0,1,0))
+		// if there's an opaque block to the W, we should face N instead
+		// (also: see note above for regular chests)
+		if (rj.blockimages.isOpaque(blockIDW, blockDataW))
+			node.bimgoffset = 271;
+	}
 
 	//!!!!!!!! for now, only fully opaque blocks can have drop-off shadows, but some others like snow could
 	//          probably use them, too

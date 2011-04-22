@@ -114,7 +114,7 @@ struct BlockImages
 	bool construct(int B, const std::string& terrainfile, const std::string& firefile);
 };
 
-#define NUMBLOCKIMAGES 250
+#define NUMBLOCKIMAGES 273
 
 // block image offsets:
 //
@@ -177,12 +177,30 @@ struct BlockImages
 // 151 UNUSED                183 furnace W             215 brown wool            247 repeater off W
 // 152 UNUSED                184 furnace N             216 green wool            248 pine leaves
 // 153 pumpkin facing E/S    185 furnace E/S           217 red wool              249 birch leaves
-// 154 pumpkin facing N      186 lit furnace W         218 black wool
-// 155 jack-o-lantern E/S    187 lit furnace N         219 pine log
-// 156 jack-o-lantern N      188 lit furnace E/S       220 birch log
-// 157 water surface         189 fire                  221 lapis ore
-// 158 fence N               190 stone button facing S 222 lapis block
-// 159 fence S               191 stone button facing N 223 dispenser W
+// 154 pumpkin facing N      186 lit furnace W         218 black wool            250 pine sapling
+// 155 jack-o-lantern E/S    187 lit furnace N         219 pine log              251 birch sapling
+// 156 jack-o-lantern N      188 lit furnace E/S       220 birch log             252 booster on EW
+// 157 water surface         189 fire                  221 lapis ore             253 booster on NS
+// 158 fence N               190 stone button facing S 222 lapis block           254 booster on asc S
+// 159 fence S               191 stone button facing N 223 dispenser W           255 booster on asc N
+//
+// 256 booster on asc E
+// 257 booster on asc W
+// 258 booster off EW
+// 259 booster off NS
+// 260 booster off asc S
+// 261 booster off asc N
+// 262 booster off asc E
+// 263 booster off asc W
+// 264 detector EW
+// 265 detector NS
+// 266 detector asc S
+// 267 detector asc N
+// 268 detector asc E
+// 269 detector asc W
+// 270 locked chest facing W
+// 271 locked chest facing N
+// 272 web
 
 
 
