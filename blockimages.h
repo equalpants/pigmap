@@ -114,7 +114,7 @@ struct BlockImages
 	bool construct(int B, const std::string& terrainfile, const std::string& firefile);
 };
 
-#define NUMBLOCKIMAGES 273
+#define NUMBLOCKIMAGES 281
 
 // block image offsets:
 //
@@ -201,6 +201,14 @@ struct BlockImages
 // 270 locked chest facing W
 // 271 locked chest facing N
 // 272 web
+// 273 tall grass
+// 274 fern
+// 275 dead shrub
+// 276 trapdoor closed
+// 277 trapdoor open W
+// 278 trapdoor open E
+// 279 trapdoor open S
+// 280 trapdoor open N
 
 
 

@@ -1081,6 +1081,10 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(28, 4)] = 268;
 	blockOffsets[offsetIdx(28, 5)] = 269;
 	setOffsetsForID(30, 272, *this);
+	setOffsetsForID(31, 273, *this);
+	blockOffsets[offsetIdx(31, 0)] = 275;
+	blockOffsets[offsetIdx(31, 2)] = 274;
+	setOffsetsForID(32, 275, *this);
 	blockOffsets[offsetIdx(35, 0)] = 29;
 	blockOffsets[offsetIdx(35, 1)] = 204;
 	blockOffsets[offsetIdx(35, 2)] = 205;
@@ -1296,6 +1300,11 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(94, 11)] = 241;
 	blockOffsets[offsetIdx(94, 15)] = 241;
 	setOffsetsForID(95, 270, *this);
+	setOffsetsForID(96, 276, *this);
+	blockOffsets[offsetIdx(96, 4)] = 277;
+	blockOffsets[offsetIdx(96, 5)] = 278;
+	blockOffsets[offsetIdx(96, 6)] = 279;
+	blockOffsets[offsetIdx(96, 7)] = 280;
 }
 
 void BlockImages::checkOpacityAndTransparency(int B)
@@ -1415,6 +1424,8 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 
 	// colorize various tiles
 	darken(tiles, ImageRect(0, 0, 2*B, 2*B), 0.6, 0.95, 0.3);  // tile 0 = grass top
+	darken(tiles, ImageRect(14*B, 4*B, 2*B, 2*B), 0.6, 0.95, 0.3);  // tile 39 = tall grass
+	darken(tiles, ImageRect(16*B, 6*B, 2*B, 2*B), 0.6, 0.95, 0.3);  // tile 56 = fern
 	darken(tiles, ImageRect(8*B, 20*B, 2*B, 2*B), 0.9, 0.1, 0.1);  // tile 164 = redstone dust
 
 	// create colorized copies of leaf tiles (can't colorize in place because normal and
@@ -1594,6 +1605,9 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawItemBlockImage(img, getRect(250), tiles, 63, B);  // pine sapling
 	drawItemBlockImage(img, getRect(251), tiles, 79, B);  // birch sapling
 	drawItemBlockImage(img, getRect(272), tiles, 11, B);  // web
+	drawItemBlockImage(img, getRect(273), tiles, 39, B);  // tall grass
+	drawItemBlockImage(img, getRect(274), tiles, 56, B);  // fern
+	drawItemBlockImage(img, getRect(275), tiles, 55, B);  // dead shrub
 
 	drawSingleFaceBlockImage(img, getRect(44), tiles, 80, 1, B);  // torch pointing S
 	drawSingleFaceBlockImage(img, getRect(45), tiles, 80, 0, B);  // torch pointing N
@@ -1627,6 +1641,10 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawSingleFaceBlockImage(img, getRect(146), tiles, 115, 0, B);  // red torch N off
 	drawSingleFaceBlockImage(img, getRect(147), tiles, 115, 3, B);  // red torch W off
 	drawSingleFaceBlockImage(img, getRect(148), tiles, 115, 2, B);  // red torch E off
+	drawSingleFaceBlockImage(img, getRect(277), tiles, 84, 2, B);  // trapdoor open W
+	drawSingleFaceBlockImage(img, getRect(278), tiles, 84, 3, B);  // trapdoor open E
+	drawSingleFaceBlockImage(img, getRect(279), tiles, 84, 0, B);  // trapdoor open S
+	drawSingleFaceBlockImage(img, getRect(280), tiles, 84, 1, B);  // trapdoor open N
 
 	drawPartialSingleFaceBlockImage(img, getRect(100), tiles, 4, 2, B, 0.25, 0.75, 0, 1);  // wall sign facing E
 	drawPartialSingleFaceBlockImage(img, getRect(101), tiles, 4, 3, B, 0.25, 0.75, 0, 1);  // wall sign facing W
@@ -1661,6 +1679,7 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawFloorBlockImage(img, getRect(259), tiles, 163, 0, B);  // booster off NS
 	drawFloorBlockImage(img, getRect(264), tiles, 195, 1, B);  // detector EW
 	drawFloorBlockImage(img, getRect(265), tiles, 195, 0, B);  // detector NS
+	drawFloorBlockImage(img, getRect(276), tiles, 84, 0, B);  // trapdoor closed
 
 	drawAngledFloorBlockImage(img, getRect(200), tiles, 128, 0, 0, B);  // track asc S
 	drawAngledFloorBlockImage(img, getRect(201), tiles, 128, 0, 2, B);  // track asc N
