@@ -22,6 +22,8 @@
 //   -have signs actually face correct directions
 //   -edge shadows on vertical edges, too?
 //   -proper redstone wire directions
+//   -better dragon egg
+//   -extended pistons
 // -premultiply block image alphas?
 // -dump list of corrupted chunks at end, so they can be retried later
 // -keep some space around for PNG row pointers instead of allocating every time
@@ -759,6 +761,21 @@ void testReqTileCount(const string& inputpath)
 	}
 }
 
+void testResize()
+{
+	int sourceSize = 16;
+	for (int B = 2; B <= 16; B++)
+	{
+		int destSize = 2*B;
+		cout << "====== B: " << B << "   destSize: " << destSize << "    sourceSize: " << sourceSize << " ======" << endl;
+		for (int i = 0; i < destSize; i++)
+		{
+			int j = interpolate(i, destSize, sourceSize);
+			cout << i << " --> " << j << endl;
+		}
+	}
+}
+
 //-------------------------------------------------------------------------------------------------------------------
 
 bool validateParamsFull(const string& inputpath, const string& outputpath, const string& imgpath, const MapParams& mp, int threads, const string& chunklist, const string& regionlist, bool expand, const string& htmlpath)
@@ -935,6 +952,7 @@ int main(int argc, char **argv)
 	//testZOrder();
 	//testTileIdxs();
 	//testReqTileCount(inputpath);
+	//testResize();
 
 	string inputpath, outputpath, imgpath = ".", chunklist, regionlist, htmlpath = ".";
 	MapParams mp(-1,-1,-1);

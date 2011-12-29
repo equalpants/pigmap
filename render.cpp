@@ -242,9 +242,26 @@ void checkSpecial(SceneGraphNode& node, uint8_t blockID, uint8_t blockData, cons
 		GETNEIGHBOR(blockIDS, blockDataS, BlockIdx(1,0,0))
 		GETNEIGHBOR(blockIDE, blockDataE, BlockIdx(0,-1,0))
 		GETNEIGHBOR(blockIDW, blockDataW, BlockIdx(0,1,0))
-		int bits = (blockIDN == 85 ? 0x1 : 0) | (blockIDS == 85 ? 0x2 : 0) | (blockIDE == 85 ? 0x4 : 0) | (blockIDW == 85 ? 0x8 : 0);
+		int bits = ((blockIDN == 85 || blockIDN == 107) ? 0x1 : 0) |
+		            ((blockIDS == 85 || blockIDS == 107) ? 0x2 : 0) |
+		            ((blockIDE == 85 || blockIDE == 107) ? 0x4 : 0) |
+		            ((blockIDW == 85 || blockIDW == 107) ? 0x8 : 0);
 		if (bits != 0)
 			node.bimgoffset = 157 + bits;
+	}
+	else if (blockID == 113)  // nether fence
+	{
+		uint8_t blockIDN, blockDataN, blockIDE, blockDataE, blockIDS, blockDataS, blockIDW, blockDataW;
+		GETNEIGHBOR(blockIDN, blockDataN, BlockIdx(-1,0,0))
+		GETNEIGHBOR(blockIDS, blockDataS, BlockIdx(1,0,0))
+		GETNEIGHBOR(blockIDE, blockDataE, BlockIdx(0,-1,0))
+		GETNEIGHBOR(blockIDW, blockDataW, BlockIdx(0,1,0))
+		int bits = ((blockIDN == 113 || blockIDN == 107) ? 0x1 : 0) |
+		            ((blockIDS == 113 || blockIDS == 107) ? 0x2 : 0) |
+		            ((blockIDE == 113 || blockIDE == 107) ? 0x4 : 0) |
+		            ((blockIDW == 113 || blockIDW == 107) ? 0x8 : 0);
+		if (bits != 0)
+			node.bimgoffset = 316 + bits;
 	}
 	else if (blockID == 54)  // chest
 	{
@@ -255,31 +272,64 @@ void checkSpecial(SceneGraphNode& node, uint8_t blockID, uint8_t blockData, cons
 		GETNEIGHBOR(blockIDW, blockDataW, BlockIdx(0,1,0))
 		// if there's another chest to the N, make this a southern half
 		if (blockIDN == 54)
-			node.bimgoffset = 174;
+			node.bimgoffset = (blockDataN == 3) ? 174 : 299;
 		// ...or if there's one to the S, make this a northern half
 		else if (blockIDS == 54)
-			node.bimgoffset = 173;
+			node.bimgoffset = (blockDataS == 3) ? 173 : 298;
 		// ...same deal with E/W
 		else if (blockIDW == 54)
-			node.bimgoffset = 175;
+			node.bimgoffset = (blockDataW == 4) ? 175 : 300;
 		else if (blockIDE == 54)
-			node.bimgoffset = 176;
-		// if this is a single chest, but there's an opaque block to the W, we should face N instead
-		// (note: technically just checking the blockID/blockData isn't correct, since the neighbor might
-		//  itself require special processing, and might end up using a different block image, which might
-		//  no longer be opaque--but nothing does that currently, and that would be one strange kind of block
-		//  anyway, so the hell with it)
-		else if (rj.blockimages.isOpaque(blockIDW, blockDataW))
-			node.bimgoffset = 177;
+			node.bimgoffset = (blockDataE == 4) ? 176 : 301;
 	}
 	else if (blockID == 95)  // locked chest
 	{
 		uint8_t blockIDW, blockDataW;
 		GETNEIGHBOR(blockIDW, blockDataW, BlockIdx(0,1,0))
 		// if there's an opaque block to the W, we should face N instead
-		// (also: see note above for regular chests)
 		if (rj.blockimages.isOpaque(blockIDW, blockDataW))
 			node.bimgoffset = 271;
+	}
+	else if (blockID == 101)  // iron bars
+	{
+		uint8_t blockIDN, blockDataN, blockIDE, blockDataE, blockIDS, blockDataS, blockIDW, blockDataW;
+		GETNEIGHBOR(blockIDN, blockDataN, BlockIdx(-1,0,0))
+		GETNEIGHBOR(blockIDS, blockDataS, BlockIdx(1,0,0))
+		GETNEIGHBOR(blockIDE, blockDataE, BlockIdx(0,-1,0))
+		GETNEIGHBOR(blockIDW, blockDataW, BlockIdx(0,1,0))
+		// decide which edges to draw based on which neighbors are not air (zero neighbors gets the full cross)
+		int bits = (blockIDN != 0 ? 0x1 : 0) | (blockIDS != 0 ? 0x2 : 0) | (blockIDE != 0 ? 0x4 : 0) | (blockIDW != 0 ? 0x8 : 0);
+		static const int ironBarOffsets[16] = {355, 419, 420, 356, 421, 357, 359, 365, 422, 358, 360, 364, 361, 363, 362, 355};
+		node.bimgoffset = ironBarOffsets[bits];
+	}
+	else if (blockID == 102)  // glass pane
+	{
+		uint8_t blockIDN, blockDataN, blockIDE, blockDataE, blockIDS, blockDataS, blockIDW, blockDataW;
+		GETNEIGHBOR(blockIDN, blockDataN, BlockIdx(-1,0,0))
+		GETNEIGHBOR(blockIDS, blockDataS, BlockIdx(1,0,0))
+		GETNEIGHBOR(blockIDE, blockDataE, BlockIdx(0,-1,0))
+		GETNEIGHBOR(blockIDW, blockDataW, BlockIdx(0,1,0))
+		// decide which edges to draw based on which neighbors are not air (zero neighbors gets the full cross)
+		int bits = (blockIDN != 0 ? 0x1 : 0) | (blockIDS != 0 ? 0x2 : 0) | (blockIDE != 0 ? 0x4 : 0) | (blockIDW != 0 ? 0x8 : 0);
+		static const int glassPaneOffsets[16] = {366, 423, 424, 367, 425, 368, 370, 376, 426, 369, 371, 375, 372, 374, 373, 366};
+		node.bimgoffset = glassPaneOffsets[bits];
+	}
+	else if ((blockID == 104 || blockID == 105) && blockData == 7)  // full stem
+	{
+		uint8_t blockIDN, blockDataN, blockIDE, blockDataE, blockIDS, blockDataS, blockIDW, blockDataW;
+		GETNEIGHBOR(blockIDN, blockDataN, BlockIdx(-1,0,0))
+		GETNEIGHBOR(blockIDS, blockDataS, BlockIdx(1,0,0))
+		GETNEIGHBOR(blockIDE, blockDataE, BlockIdx(0,-1,0))
+		GETNEIGHBOR(blockIDW, blockDataW, BlockIdx(0,1,0))
+		int target = (blockID == 104) ? 86 : 103;
+		if (blockIDN == target)
+			node.bimgoffset = 403;
+		else if (blockIDS == target)
+			node.bimgoffset = 404;
+		else if (blockIDE == target)
+			node.bimgoffset = 405;
+		else if (blockIDW == target)
+			node.bimgoffset = 406;
 	}
 
 	//!!!!!!!! for now, only fully opaque blocks can have drop-off shadows, but some others like snow could

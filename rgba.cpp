@@ -292,17 +292,16 @@ void reduceHalf(RGBAImage& dest, const ImageRect& drect, const RGBAImage& source
 
 
 
+
 //!!!!!!!!! replace this with something non-idiotic?  (it does surprisingly well, though!)
 void resize(const RGBAImage& source, const ImageRect& srect, RGBAImage& dest, const ImageRect& drect)
 {
 	for (int y = drect.y; y < drect.y + drect.h; y++)
 	{
-		float ypct = (float)(y - drect.y) / (float)(drect.h - 1);
-		int yoff = (int)(ypct * (float)(srect.h - 1));
+		int yoff = interpolate(y - drect.y, drect.h, srect.h);
 		for (int x = drect.x; x < drect.x + drect.w; x++)
 		{
-			float xpct = (float)(x - drect.x) / (float)(drect.w - 1);
-			int xoff = (int)(xpct * (float)(srect.w - 1));
+			int xoff = interpolate(x - drect.x, drect.w, srect.w);
 			dest(x, y) = source(srect.x + xoff, srect.y + yoff);
 		}
 	}
@@ -332,4 +331,11 @@ void blit(const RGBAImage& source, const ImageRect& srect, RGBAImage& dest, int3
 	for (int32_t yoff = ybegin, sy = srect.y + ybegin, dy = dystart + ybegin; yoff < yend; yoff++, sy++, dy++)
 		for (int32_t xoff = xbegin, sx = srect.x + xbegin, dx = dxstart + xbegin; xoff < xend; xoff++, sx++, dx++)
 			dest(dx,dy) = source(sx,sy);
+}
+
+void flipX(RGBAImage& img, const ImageRect& rect)
+{
+	for (int y = rect.y; y < rect.y + rect.h; y++)
+		for (int x1 = rect.x, x2 = rect.x + rect.w - 1; x1 < rect.x + rect.w/2; x1++, x2--)
+			swap(img(x1, y), img(x2, y));
 }

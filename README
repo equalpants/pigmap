@@ -36,6 +36,13 @@ Use supplied makefile to build with g++.
 
 Change log (important stuff only):
 
+1.0
+-NOTE: users of jcornwellshiel's fork will need to regenerate their blocks-B.png
+-new blocks all the way up through Minecraft 1.0
+-endportal.png added; must be placed in images directory alongside terrain.png
+-fixed some ugliness in the rendering of cross-shaped item blocks (saplings, etc.)
+-improved rendering of large block sizes (B > 8)
+
 0.7.4
 -new blocks for Minecraft Beta 1.6: tall grass, ferns, dead shrubs, trapdoors
 
@@ -237,6 +244,10 @@ pre-0.6 version of pigmap, your modified images can still be found at their old 
 blocks-B.png, but they must be copied to the new locations.
 
 Complete list of block image moves:
+
+--- pigmap 1.0 ---
+beds: 232->281, 233->282, 234->283, 235->284, 236->285, 237->286, 238->287, 239->288
+cake: 228->289
 
 --- pigmap 0.6 ---
 furnaces: 68->183, 69->186, 149->184, 150->185, 151->187, 152->188

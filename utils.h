@@ -63,6 +63,9 @@ int64_t ceildiv(int64_t a, int64_t b);
 // positive remainder mod 64, for chunk subdirectories
 int64_t mod64pos(int64_t a);
 
+// given i in [0,destrange), find j in [0,srcrange)
+int64_t interpolate(int64_t i, int64_t destrange, int64_t srcrange);
+
 
 // take a row-major index into a SIZExSIZE array and convert it to Z-order
 uint32_t toZOrder(uint32_t i, const uint32_t SIZE);

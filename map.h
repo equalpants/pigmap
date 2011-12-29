@@ -22,6 +22,14 @@
 #include <string>
 #include <vector>
 
+// IMPORTANT NOTE:
+//  This program was written before the location of the sun moved in Minecraft Beta 1.9 or so,
+//   therefore all of the N/S/E/W directions here are now wrong--rotated 90 degrees from what they
+//   should be.  For example, the positive X direction used to be South, and is called South here,
+//   but is now East in the game (as of Minecraft 1.0, anyway).
+//  I decided to leave the old direction names here, because it would be pretty easy to mess
+//   something up trying to go through and change everything.  Apologies for the confusion!
+
 // Minecraft coord system:
 //
 // +x = S    +z = W    +y = U

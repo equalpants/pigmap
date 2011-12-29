@@ -240,6 +240,14 @@ int64_t mod64pos(int64_t a)
 	return (m == 0) ? 0 : (64 + m);
 }
 
+int64_t interpolate(int64_t i, int64_t destrange, int64_t srcrange)
+{
+	double f = (double)i / (double)(destrange - 1);
+	f = f * (double)(srcrange - 1);
+	int64_t j = (int64_t)f;
+	return (f - (double)j >= 0.5) ? j+1 : j;
+}
+
 
 
 // technically, these use "upside-down-N-order", not Z-order--that is, the Y-coord is incremented
