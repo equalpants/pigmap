@@ -120,7 +120,7 @@ struct BlockImages
 	bool construct(int B, const std::string& terrainfile, const std::string& firefile, const std::string& endportalfile);
 };
 
-#define NUMBLOCKIMAGES 427
+#define NUMBLOCKIMAGES 430
 
 // block image offsets:
 //
@@ -234,9 +234,9 @@ struct BlockImages
 // 392 vines NEW               424 glass pane S
 // 393 vines SEW               425 glass pane E
 // 394 vines NSEW              426 glass pane W
-// 395 stem level 0
-// 396 stem level 1
-// 397 stem level 2
+// 395 stem level 0            427 jungle log
+// 396 stem level 1            428 jungle leaves
+// 397 stem level 2            429 jungle sapling
 // 398 stem level 3
 // 399 stem level 4
 // 400 stem level 5

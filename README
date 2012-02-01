@@ -36,6 +36,9 @@ Use supplied makefile to build with g++.
 
 Change log (important stuff only):
 
+1.0.1
+-new blocks: jungle logs/leaves/saplings
+
 1.0
 -NOTE: users of jcornwellshiel's fork will need to regenerate their blocks-B.png
 -new blocks all the way up through Minecraft 1.0
@@ -143,9 +146,9 @@ that contains the isometric renderings of each block.  The default image path is
 blocks-B.png comes with a corresponding blocks-B.version, which remembers how many block images are
 stored in blocks-B.png.  (As more blocks are added to the game, the version will change.)
 
-The file fire.png, included with pigmap, must also be placed in the image path, alongside
-terrain.png.  (fire.png contains the image used to draw fire blocks; terrain.png does not have a
-tile for fire.)
+The files fire.png and endportal.png, included with pigmap, must also be placed in the image path,
+alongside terrain.png.  (fire.png contains the image used to draw fire blocks, and endportal.png the
+image used for end portals; terrain.png does not have tiles for these.)
 
 The selection of block images works thusly:
 

@@ -1190,6 +1190,10 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(6, 6)] = 251;
 	blockOffsets[offsetIdx(6, 10)] = 251;
 	blockOffsets[offsetIdx(6, 14)] = 251;
+	blockOffsets[offsetIdx(6, 3)] = 429;
+	blockOffsets[offsetIdx(6, 7)] = 429;
+	blockOffsets[offsetIdx(6, 11)] = 429;
+	blockOffsets[offsetIdx(6, 15)] = 429;
 	setOffsetsForID(7, 7, *this);
 	setOffsetsForID(8, 8, *this);
 	blockOffsets[offsetIdx(8, 1)] = 9;
@@ -1223,6 +1227,7 @@ void BlockImages::setOffsets()
 	setOffsetsForID(17, 25, *this);
 	blockOffsets[offsetIdx(17, 1)] = 219;
 	blockOffsets[offsetIdx(17, 2)] = 220;
+	blockOffsets[offsetIdx(17, 3)] = 427;
 	setOffsetsForID(18, 26, *this);
 	blockOffsets[offsetIdx(18, 1)] = 248;
 	blockOffsets[offsetIdx(18, 5)] = 248;
@@ -1232,6 +1237,10 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(18, 6)] = 249;
 	blockOffsets[offsetIdx(18, 10)] = 249;
 	blockOffsets[offsetIdx(18, 14)] = 249;
+	blockOffsets[offsetIdx(18, 3)] = 428;
+	blockOffsets[offsetIdx(18, 7)] = 428;
+	blockOffsets[offsetIdx(18, 11)] = 428;
+	blockOffsets[offsetIdx(18, 15)] = 428;
 	setOffsetsForID(19, 27, *this);
 	setOffsetsForID(20, 28, *this);
 	setOffsetsForID(21, 221, *this);
@@ -1776,7 +1785,7 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	// create colorized copies of leaf tiles (can't colorize in place because normal and
 	//  birch leaves use the same texture)
 	RGBAImage leaftiles;
-	leaftiles.create(6*B, 2*B);
+	leaftiles.create(8*B, 2*B);
 	// normal
 	blit(tiles, ImageRect(8*B, 6*B, 2*B, 2*B), leaftiles, 0, 0);
 	darken(leaftiles, ImageRect(0, 0, 2*B, 2*B), 0.3, 1.0, 0.1);
@@ -1786,6 +1795,9 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	// birch
 	blit(tiles, ImageRect(8*B, 6*B, 2*B, 2*B), leaftiles, 4*B, 0);
 	darken(leaftiles, ImageRect(4*B, 0, 2*B, 2*B), 0.55, 0.9, 0.1);
+	// jungle
+	blit(tiles, ImageRect(8*B, 24*B, 2*B, 2*B), leaftiles, 6*B, 0);
+	darken(leaftiles, ImageRect(6*B, 0, 2*B, 2*B), 0.35, 1.0, 0.05);
 	
 	// create colorized/shortened copies of stem tiles
 	RGBAImage stemtiles;
@@ -1853,11 +1865,13 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawBlockImage(img, getRect(23), tiles, 33, 33, 33, B);  // iron ore
 	drawBlockImage(img, getRect(24), tiles, 34, 34, 34, B);  // coal ore
 	drawBlockImage(img, getRect(25), tiles, 20, 20, 21, B);  // log
-	drawBlockImage(img, getRect(219), tiles, 116, 116, 21, B);  // dark log
+	drawBlockImage(img, getRect(219), tiles, 116, 116, 21, B);  // pine log
 	drawBlockImage(img, getRect(220), tiles, 117, 117, 21, B);  // birch log
+	drawBlockImage(img, getRect(427), tiles, 153, 153, 21, B);  // jungle log
 	drawBlockImage(img, getRect(26), leaftiles, 0, 0, 0, B);  // leaves
 	drawBlockImage(img, getRect(248), leaftiles, 1, 1, 1, B);  // pine leaves
 	drawBlockImage(img, getRect(249), leaftiles, 2, 2, 2, B);  // birch leaves
+	drawBlockImage(img, getRect(428), leaftiles, 3, 3, 3, B);  // jungle leaves
 	drawBlockImage(img, getRect(27), tiles, 48, 48, 48, B);  // sponge
 	drawBlockImage(img, getRect(28), tiles, 49, 49, 49, B);  // glass
 	drawBlockImage(img, getRect(29), tiles, 64, 64, 64, B);  // white wool
@@ -2014,6 +2028,7 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawItemBlockImage(img, getRect(132), tiles, 73, B);  // reeds
 	drawItemBlockImage(img, getRect(250), tiles, 63, B);  // pine sapling
 	drawItemBlockImage(img, getRect(251), tiles, 79, B);  // birch sapling
+	drawItemBlockImage(img, getRect(429), tiles, 30, B);  // birch sapling
 	drawItemBlockImage(img, getRect(272), tiles, 11, B);  // web
 	drawItemBlockImage(img, getRect(273), tiles, 39, B);  // tall grass
 	drawItemBlockImage(img, getRect(274), tiles, 56, B);  // fern
