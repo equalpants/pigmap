@@ -192,6 +192,8 @@ struct PseudocolumnIterator
 {
 	bool end;  // true when we've run out of blocks
 	BlockIdx current;  // when end == false, holds current block
+	
+	const MapParams& mparams;
 
 	// constructor initializes to topmost block
 	PseudocolumnIterator(const Pixel& center, const MapParams& mp);

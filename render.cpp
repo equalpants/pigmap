@@ -117,7 +117,7 @@ void TileBlockIterator::advance()
 
 
 
-PseudocolumnIterator::PseudocolumnIterator(const Pixel& center, const MapParams& mp) : current(0,0,0)
+PseudocolumnIterator::PseudocolumnIterator(const Pixel& center, const MapParams& mp) : current(0,0,0), mparams(mp)
 {
 	current = BlockIdx::topBlock(center, mp);
 	end = false;
@@ -126,7 +126,7 @@ PseudocolumnIterator::PseudocolumnIterator(const Pixel& center, const MapParams&
 void PseudocolumnIterator::advance()
 {
 	current += BlockIdx(1,-1,-1);
-	if (current.y < 0)
+	if (current.y < mparams.minY)
 		end = true;
 }
 

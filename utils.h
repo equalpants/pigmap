@@ -29,6 +29,9 @@ void makePath(const std::string& path);
 void renameFile(const std::string& oldpath, const std::string& newpath);
 void copyFile(const std::string& oldpath, const std::string& newpath);
 
+// read a text file and append each of its non-empty lines to a vector
+bool readLines(const std::string& filename, std::vector<std::string>& lines);
+
 // list names of entries in a directory, not including "." and ".."
 // ...returns relative paths beginning with dirpath; appends results to vector
 void listEntries(const std::string& dirpath, std::vector<std::string>& entries);
@@ -80,10 +83,13 @@ std::string toBase36(int64_t i);
 std::string tostring(int i);
 std::string tostring(int64_t i);
 bool fromstring(const std::string& s, int64_t& result);
+bool fromstring(const std::string& s, int& result);
 
 
 // replace all occurrences of oldstr in text with newstr; return false if none found
 bool replace(std::string& text, const std::string& oldstr, const std::string& newstr);
+
+std::vector<std::string> tokenize(const std::string& instr, char separator);
 
 
 // find an assignment of costs to threads that attempts to minimize the difference

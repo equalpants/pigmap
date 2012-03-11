@@ -375,13 +375,19 @@ void writeHTML(const RenderJob& rj, const string& htmlpath)
 	ifstream infile(templatePath.c_str());
 	infile.get(strbuf, 0);  // get entire file (unless it happens to have a '\0' in it)
 	if (infile.fail())
+	{
+		cerr << "couldn't find template.html" << endl;
 		return;
+	}
 	string templateText = strbuf.str();
 	if (!replace(templateText, "{tileSize}", tostring(rj.mp.tileSize())) ||
 	    !replace(templateText, "{B}", tostring(rj.mp.B)) ||
 	    !replace(templateText, "{T}", tostring(rj.mp.T)) ||
 	    !replace(templateText, "{baseZoom}", tostring(rj.mp.baseZoom)))
+	{
+		cerr << "template.html is corrupt" << endl;
 		return;
+	}
 	string htmlOutPath = rj.outputpath + "/pigmap-default.html";
 	ofstream outfile(htmlOutPath.c_str());
 	outfile << templateText;
@@ -414,6 +420,10 @@ bool performRender(const string& inputpath, const string& outputpath, const stri
 		cout << "region-format world detected" << endl;
 	else
 		cout << "no regions detected; assuming chunk-format world" << endl;
+	// for now we're still only going up to 127
+	rj.mp.minY = std::min(rj.mp.minY, 127);
+	rj.mp.maxY = std::min(rj.mp.maxY, 127);
+
 	// test world
 	if (testworldsize != -1)
 	{
@@ -802,6 +812,13 @@ bool validateParamsFull(const string& inputpath, const string& outputpath, const
 		return false;
 	}
 
+	// MINY/MAXY must describe a valid range
+	if (!mp.validYRange())
+	{
+		cerr << "-y and -Y, if used, must be in range 0-255, and -y must be <= -Y" << endl;
+		return false;
+	}
+
 	// must have a sensible number of threads (upper limit is arbitrary, but you'd need a truly
 	//  insanely large map to see any benefit to having that many...)
 	if (threads < 1 || threads > 64)
@@ -833,10 +850,10 @@ bool validateParamsFull(const string& inputpath, const string& outputpath, const
 // also sets MapParams to values from existing map
 bool validateParamsIncremental(const string& inputpath, const string& outputpath, const string& imgpath, MapParams& mp, int threads, const string& chunklist, const string& regionlist, bool expand, const string& htmlpath)
 {
-	// -B, -T, -Z are not allowed
-	if (mp.B != -1 || mp.T != -1 || mp.baseZoom != -1)
+	// -B, -T, -Z, -y, -Y are not allowed
+	if (mp.B != -1 || mp.T != -1 || mp.baseZoom != -1 || mp.userMinY || mp.userMaxY)
 	{
-		cerr << "-B, -T, -Z not allowed for incremental updates" << endl;
+		cerr << "-B, -T, -Z, -y, -Y not allowed for incremental updates" << endl;
 		return false;
 	}
 
@@ -912,6 +929,13 @@ bool validateParamsTest(const string& inputpath, const string& outputpath, const
 		cerr << "-Z must be in range 0-30, or may be omitted to set automatically" << endl;
 		return false;
 	}
+	
+	// MINY/MAXY must describe a valid range
+	if (!mp.validYRange())
+	{
+		cerr << "-y and -Y, if used, must be in range 0-255, and -y must be <= -Y" << endl;
+		return false;
+	}
 
 	// must have a sensible number of threads (upper limit is arbitrary, but you'd need a truly
 	//  insanely large map to see any benefit to having that many...)
@@ -961,7 +985,7 @@ int main(int argc, char **argv)
 	bool expand = false;
 
 	int c;
-	while ((c = getopt(argc, argv, "i:o:g:c:B:T:Z:h:w:xm:r:")) != -1)
+	while ((c = getopt(argc, argv, "i:o:g:c:B:T:Z:h:w:xm:r:y:Y:")) != -1)
 	{
 		switch (c)
 		{
@@ -988,6 +1012,14 @@ int main(int argc, char **argv)
 				break;
 			case 'Z':
 				mp.baseZoom = atoi(optarg);
+				break;
+			case 'y':
+				mp.minY = atoi(optarg);
+				mp.userMinY = true;
+				break;
+			case 'Y':
+				mp.maxY = atoi(optarg);
+				mp.userMaxY = true;
 				break;
 			case 'h':
 				threads = atoi(optarg);

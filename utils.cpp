@@ -59,6 +59,17 @@ void copyFile(const string& oldpath, const string& newpath)
 	outfile << infile.rdbuf();
 }
 
+bool readLines(const string& filename, vector<string>& lines)
+{
+	ifstream infile(filename.c_str());
+	if (infile.fail())
+		return false;
+	string line;
+	while (!getline(infile, line).eof())
+		lines.push_back(line);
+	return true;
+}
+
 
 void listEntries(const string& dirpath, vector<string>& entries)
 {
@@ -381,6 +392,13 @@ bool fromstring(const string& s, int64_t& result)
 	return !ss.fail();
 }
 
+bool fromstring(const string& s, int& result)
+{
+	istringstream ss(s);
+	ss >> result;
+	return !ss.fail();
+}
+
 bool replace(string& text, const string& oldstr, const string& newstr)
 {
 	string::size_type pos = text.find(oldstr);
@@ -392,6 +410,16 @@ bool replace(string& text, const string& oldstr, const string& newstr)
 		pos = text.find(oldstr, pos + 1);
 	}
 	return true;
+}
+
+vector<string> tokenize(const string& instr, char separator)
+{
+	vector<string> tokens;
+	istringstream stream(instr);
+	string token;
+	while (!getline(stream, token, separator).eof())
+		tokens.push_back(token);
+	return tokens;
 }
 
 

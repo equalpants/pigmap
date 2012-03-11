@@ -16,6 +16,7 @@
 // along with pigmap.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <fstream>
+#include <map>
 
 #include "map.h"
 #include "utils.h"
@@ -34,16 +35,43 @@ bool MapParams::validZoom() const
 	return baseZoom >= 0 && baseZoom <= 30;
 }
 
+bool MapParams::validYRange() const
+{
+	return minY <= maxY && minY >= 0 && maxY <= 255;
+}
+
+
+bool buildParamMap(const vector<string>& lines, map<string, string>& params)
+{
+	for (vector<string>::const_iterator it = lines.begin(); it != lines.end(); it++)
+	{
+		vector<string> tokens = tokenize(*it, ' ');
+		if (tokens.size() != 2)
+			return false;
+		params.insert(make_pair(tokens[0], tokens[1]));
+	}
+	return true;
+}
+
+bool readParam(const map<string, string>& params, const string& key, int& value)
+{
+	map<string, string>::const_iterator it = params.find(key);
+	if (it == params.end())
+		return false;
+	return fromstring(it->second, value);
+}
+
 bool MapParams::readFile(const string& outputpath)
 {
 	string filename = outputpath + "/pigmap.params";
-	ifstream infile(filename.c_str());
-	if (infile.fail())
+	vector<string> lines;
+	map<string, string> params;
+	if (!readLines(filename, lines) || !buildParamMap(lines, params))
 		return false;
-	string strB, strT, strZ;
-	infile >> strB >> B >> strT >> T >> strZ >> baseZoom;
-	if (infile.fail() || strB != "B" || strT != "T" || strZ != "baseZoom")
+	if (!readParam(params, "B", B) || !readParam(params, "T", T) || !readParam(params, "baseZoom", baseZoom))
 		return false;
+	userMinY = readParam(params, "userMinY", minY);
+	userMaxY = readParam(params, "userMaxY", maxY);
 	return valid() && validZoom();
 }
 
@@ -52,6 +80,10 @@ void MapParams::writeFile(const string& outputpath) const
 	string filename = outputpath + "/pigmap.params";
 	ofstream outfile(filename.c_str());
 	outfile << "B " << B << endl << "T " << T << endl << "baseZoom " << baseZoom << endl;
+	if (userMinY)
+		outfile << "userMinY " << minY << endl;
+	if (userMaxY)
+		outfile << "userMaxY " << maxY << endl;
 }
 
 
@@ -104,15 +136,15 @@ BlockIdx BlockIdx::topBlock(const Pixel& p, const MapParams& mp)
 	// x = 2Bbx + 2Bbz
 	//  2Bbx = x - 2Bbz
 	//   bx = x/2B - bz
-	// y = -Bbx +Bbz -254B
-	//  Bbz = y + Bbx + 254B
-	//   bz = y/B + bx + 254
-	// bx = x/2B - y/B - bx - 254
-	//  2bx = x/2B - y/B - 254
-	//   bx = x/4B - y/2B - 127     <----
-	// bz = y/B + x/4B - y/2B - 127 + 254
-	//  bz = x/4B + y/2B + 127     <----
-	return BlockIdx((p.x - 2*p.y)/(4*mp.B) - 127, (p.x + 2*p.y)/(4*mp.B) + 127, 127);
+	// y = -Bbx +Bbz -2Bmaxy
+	//  Bbz = y + Bbx + 2Bmaxy
+	//   bz = y/B + bx + 2maxy
+	// bx = x/2B - y/B - bx - 2maxy
+	//  2bx = x/2B - y/B - 2maxy
+	//   bx = x/4B - y/2B - maxy     <----
+	// bz = y/B + x/4B - y/2B - maxy + 2maxy
+	//  bz = x/4B + y/2B + maxy     <----
+	return BlockIdx((p.x - 2*p.y)/(4*mp.B) - mp.maxY, (p.x + 2*p.y)/(4*mp.B) + mp.maxY, mp.maxY);
 }
 
 
@@ -148,22 +180,22 @@ RegionIdx ChunkIdx::getRegionIdx() const
 	return RegionIdx(floordiv(x, 32), floordiv(z, 32));
 }
 
-//!!!!!!!!!!!!!   this can go faster; the chunk corner centers form a hexagonal grid just
-//                as the block centers do, and whether or not the tiles to the right, down,
-//                etc. are needed can be computed based only on the position within the grid
 vector<TileIdx> ChunkIdx::getTiles(const MapParams& mp) const
 {
 	BBox bbchunk = getBBox(mp);
 	vector<TileIdx> tiles;
 
-	// get tile of base corner
-	TileIdx tibase = baseCorner().getCenter(mp).getTile(mp);
+	// get tile of NED corner
+	TileIdx tibase = nedCorner(mp).getCenter(mp).getTile(mp);
 	tiles.push_back(tibase);
 
-	// see if we need to take the next tile down
+	// grab as many tiles down as we need
 	TileIdx tidown = tibase + TileIdx(0,1);
-	if (tidown.getBBox(mp).overlaps(bbchunk))
+	while (tidown.getBBox(mp).overlaps(bbchunk))
+	{
 		tiles.push_back(tidown);
+		tidown += TileIdx(0,1);
+	}
 
 	// grab as many tiles up as we need
 	TileIdx tiup = tibase - TileIdx(0,1);
@@ -247,8 +279,9 @@ string TileIdx::toFilePath(const MapParams& mp) const
 
 BBox TileIdx::getBBox(const MapParams& mp) const
 {
-	Pixel bl = baseChunk(mp).getBBox(mp).bottomLeft();
-	return BBox(bl - Pixel(0,mp.tileSize()), bl + Pixel(mp.tileSize(),0));
+	Pixel bco = baseChunk(mp).originBlock().getCenter(mp);
+	Pixel tl = bco + Pixel(-2*mp.B, 17*mp.B - mp.tileSize());
+	return BBox(tl, tl + Pixel(mp.tileSize(), mp.tileSize()));
 }
 
 ZoomTileIdx TileIdx::toZoomTileIdx(const MapParams& mp) const

@@ -70,6 +70,10 @@
 // X...X...X...
 // ..X...X...X.
 
+// a chunk is 16x16x128 blocks (chunk/region format) or 16x16x256 blocks (Anvil format), but we can
+//  also specify the min and max Y values we want, and consider a chunk to be 16x16x(MAXY-MINY+1),
+//  where MINY and MAXY are inclusive--e.g. for an entire Anvil chunk, MINY=0 and MAXY=255
+//
 // each chunk covers a hexagonal area of the image; the corners of the hexagon (in clockwise order)
 //  are the farthest blocks NED, NEU, SEU, SWU, SWD, NWD
 //
@@ -89,25 +93,32 @@
 //              \ | /
 //               NWD
 //
-// relative to the center of the NED corner block, the image-coord centers of these blocks are at:
-// NED           NEU           SEU           SWU           SWD           NWD
-// [0,0]         [0,-254B]     [30B,-267B]   [60B,-254B]   [60B,0]       [30B,15B]
+// in block coordinates, let the origin of the chunk be the block at [0,0,0] relative to the chunk--i.e.
+//  the NED corner of the full chunk (as opposed to the slice of it defined by MINY and MAXY)
 //
-// ...and the distances to the NED corner blocks of the neighboring chunks are:
+// relative to the origin block of the chunk, the corner blocks are:
+// NED              NEU              SEU                 SWU              SWD              NWD
+// [0,0,MINY]       [0,0,MAXY]       [15,0,MAXY]         [15,15,MAXY]     [15,15,MINY]     [0,15,MINY]
+//
+// ...and the image-coord centers of these blocks, relative to the image-coord center of the origin block, are:
+// NED              NEU              SEU                 SWU              SWD              NWD
+// [0,-2B*MINY]     [0,-2B*MAXY]     [30B,-15B-2B*MAXY]  [60B,-2B*MAXY]   [60B,-2B*MINY]   [30B,15B-2B*MINY]
+//
+// ...and the distances to the origin blocks of the neighboring chunks are:
 // N            E            S            W
 // [-32B,16B]   [-32B,-16B]  [32B,-16B]   [32B,16B]
 // NE           SE           SW           NW
 // [-64B,0]     [0,-32B]     [64B,0]      [0,32B]
 //
-// ...and the endpoint-exclusive bounding box of a chunk, from the center of the NED corner block, is:
-// [-2B,-269B] to [62B,17B]   (size 64Bx286B)
+// ...and the endpoint-exclusive bounding box of a chunk, from the center of the origin block, is:
+// [-2B,-17B-2B*MAXY] to [62B,17B-2B*MINY]   (size 64B x 34B-2B*(MAXY-MINY))
 //
-// the center of the NED corner block of chunk [0,0] is the origin for the absolute pixel
-//  coord system, so the center of the NED corner block of chunk [cx,cz] is [32*B*cx + 32*B*cz, -16B*cx + 16*B*cz]
+// the center of the origin block of chunk [0,0] is the origin for the absolute pixel
+//  coord system, so the center of the origin block of chunk [cx,cz] is [32*B*cx + 32*B*cz, -16B*cx + 16*B*cz]
 
 // tile size must be = T * 64B for some T (so it covers the width of at least one chunk)
 // ...each tile has a base chunk; the tile's bounding box shares its bottom-left corner with
-//  its base chunk's bounding box (so the base chunk is contained within the tile on the
+//  its base chunk's full bounding box (so the base chunk is contained within the tile on the
 //  left, right, and bottom, but may extend past the top of the tile)
 //
 // TileIdx delta      ChunkIdx delta
@@ -120,10 +131,10 @@
 //     [tx,ty] in tile coords
 // ChunkIdx of base chunk:
 //     [T*tx - 2*T*ty, T*tx + 2*T*ty] in chunk coords
-// center of base chunk's NED corner:
+// center of base chunk's origin block:
 //     [64*B*T*tx, 64*B*T*ty] in absolute pixels
 // base chunk's endpoint-exclusive bounding box:
-//     [64*B*T*tx - 2*B, 64*B*T*ty - 269*B] to [64*B*T*tx + 62*B, 64*B*T*ty + 17*B] in absolute pixels
+//     [64*B*T*tx - 2*B, 64*B*T*ty - 17*B-2*B*MAXY] to [64*B*T*tx + 62*B, 64*B*T*ty + 17*B-2*B*MINY] in absolute pixels
 // tile's endpoint-exclusive bounding box:
 //     [64*B*T*tx - 2*B, 64*B*T*ty + 17*B - 64*B*T] to [64*B*T*tx - 2*B + 64*B*T, 64*B*T*ty + 17*B] in absolute pixels
 //
@@ -134,12 +145,8 @@
 // ...where floor(a / b) represents floored division, i.e. the result you'd get by performing the real-number division a / b
 //  and then taking the floor
 
-// the tiles required to draw a chunk can be determined by finding the tile that the NED corner block's center
+// the tiles required to draw a chunk can be determined by finding the tile that the origin block's center
 //  is in, then checking the tiles below, right, and above that one, looking for bounding box intersections
-// (although the chunk only covers a hexagonal area, it does happen that any tile hit by a chunk's bounding box
-//  will also be hit by the chunk, due to the tile grid's position with respect to the chunk grid)
-// ...the range of needed tiles can extend at most one tile to the right and one tile down from the tile with
-//  the NED corner, and can be at most ceil(4.46875/T) tiles high
 
 // the set of chunks required to draw a tile can be constructed thusly:
 // set #1: start with the base chunk and the chunk directly SE of it
@@ -164,13 +171,22 @@ struct MapParams
 	// Google Maps zoom level of the base tiles; maximum map size is 2^baseZoom by 2^baseZoom tiles
 	int baseZoom;
 
-	MapParams(int b, int t, int bz) : B(b), T(t), baseZoom(bz) {}
-	MapParams() : B(0), T(0), baseZoom(0) {}
+	// MINY and MAXY values used during rendering; these are either specified by the user, or filled
+	//  in with Minecraft's limits (0-255)
+	int minY, maxY;
+	
+	// whether or not the MINY/MAXY values are user-provided or defaults; default values are not stored
+	//  in pigmap.params
+	bool userMinY, userMaxY;
+
+	MapParams(int b, int t, int bz) : B(b), T(t), baseZoom(bz), minY(0), maxY(255), userMinY(false), userMaxY(false) {}
+	MapParams() : B(0), T(0), baseZoom(0), minY(0), maxY(255), userMinY(false), userMaxY(false) {}
 
 	int tileSize() const {return 64*B*T;}
 
 	bool valid() const;  // see if B and T are okay
 	bool validZoom() const;  // see if baseZoom is okay
+	bool validYRange() const;  // see if MINY/MAXY are okay
 
 	// read/write the file "pigmap.params" in the output path (i.e. the top-level map directory)
 	bool readFile(const std::string& outputpath);  // also validates stored values
@@ -222,7 +238,7 @@ struct BlockIdx
 	BBox getBBox(const MapParams& mp) const {Pixel c = getCenter(mp); return BBox(c - Pixel(2*mp.B,2*mp.B), c + Pixel(2*mp.B,2*mp.B));}
 	ChunkIdx getChunkIdx() const;
 
-	// there are 128 blocks that project to each pixel on the map (one of each height);
+	// there are many blocks that project to each pixel on the map (one for each Y-value);
 	//  this returns the topmost, assuming that the pixel is properly aligned on the block-center grid
 	static BlockIdx topBlock(const Pixel& p, const MapParams& mp);
 
@@ -251,8 +267,9 @@ struct ChunkIdx
 	//  depend only on the filename
 	static bool fromFilePath(const std::string& filename, ChunkIdx& result);
 
-	BlockIdx baseCorner() const {return BlockIdx(x*16, z*16, 0);}  // NED corner
-	BBox getBBox(const MapParams& mp) const {Pixel c = baseCorner().getCenter(mp); return BBox(c - Pixel(2*mp.B,269*mp.B), c + Pixel(62*mp.B,17*mp.B));}
+	BlockIdx originBlock() const {return BlockIdx(x*16, z*16, 0);}
+	BlockIdx nedCorner(const MapParams& mp) const {return BlockIdx(x*16, z*16, mp.minY);}
+	BBox getBBox(const MapParams& mp) const {Pixel c = originBlock().getCenter(mp); return BBox(c - Pixel(2*mp.B,(17+2*mp.maxY)*mp.B), c + Pixel(62*mp.B,(17-2*mp.minY)*mp.B));}
 	RegionIdx getRegionIdx() const;
 
 	std::vector<TileIdx> getTiles(const MapParams& mp) const;
