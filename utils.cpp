@@ -27,6 +27,10 @@
 
 #include "utils.h"
 
+#if USE_MALLINFO
+#include <malloc.h>
+#endif
+
 using namespace std;
 
 
@@ -94,6 +98,16 @@ bool dirExists(const string& dirpath)
 		return false;
 	closedir(dir);
 	return true;
+}
+
+uint64_t getHeapUsage()
+{
+#if USE_MALLINFO
+	struct mallinfo minfo = mallinfo();
+	return minfo.uordblks + minfo.hblkhd;
+#else
+	return 0;
+#endif
 }
 
 

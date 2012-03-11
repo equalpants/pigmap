@@ -68,6 +68,9 @@ void printStats(int seconds, const RenderStats& stats)
 	     << stats.chunkcache.reqmissing << " reqmissing   " << stats.chunkcache.corrupt << " corrupt" << endl;
 	cout << "region requests: " << stats.region.read << " read (containing " << stats.region.chunksread << " chunks)   " << stats.region.skipped << " skipped" << endl;
 	cout << "                 " << stats.region.missing << " missing   " << stats.region.reqmissing << " reqmissing   " << stats.region.corrupt << " corrupt" << endl;
+#if USE_MALLINFO
+	cout << "heap usage: " << stats.heapusage << " bytes" << endl;
+#endif
 }
 
 void runSingleThread(RenderJob& rj)
@@ -80,6 +83,8 @@ void runSingleThread(RenderJob& rj)
 	RGBAImage topimg;
 	// render the tiles recursively (starting at the very top)
 	renderZoomTile(ZoomTileIdx(0,0,0), rj, topimg);
+	// get memory stats
+	rj.stats.heapusage = getHeapUsage();
 }
 
 struct WorkerThreadParams
@@ -253,6 +258,7 @@ void runMultithreaded(RenderJob& rj, int threads)
 		rj.stats.chunkcache += rjs[i].stats.chunkcache;
 		rj.stats.region += rjs[i].stats.region;
 	}
+	rj.stats.heapusage = getHeapUsage();
 
 	// copy the drawn flags over from the thread TileTables (for the double-check)
 	for (RequiredTileIterator it(*rj.tiletable); !it.end; it.advance())

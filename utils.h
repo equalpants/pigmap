@@ -48,6 +48,11 @@ int readGzFile(const std::string& filename, std::vector<uint8_t>& data);
 bool readGzOrZlib(uint8_t* inbuf, size_t size, std::vector<uint8_t>& data);
 
 
+#define USE_MALLINFO 0
+
+uint64_t getHeapUsage();
+
+
 // convert a big-endian int into whatever the current platform endianness is
 uint32_t fromBigEndian(uint32_t i);
 

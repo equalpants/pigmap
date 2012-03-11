@@ -32,10 +32,11 @@
 struct RenderStats
 {
 	int64_t reqchunkcount, reqregioncount, reqtilecount;  // number of required chunks/regions and base tiles
+	uint64_t heapusage;  // estimated peak heap memory usage (if available)
 	ChunkCacheStats chunkcache;
 	RegionStats region;
 
-	RenderStats() : reqchunkcount(0), reqregioncount(0), reqtilecount(0) {}
+	RenderStats() : reqchunkcount(0), reqregioncount(0), reqtilecount(0), heapusage(0) {}
 };
 
 
