@@ -17,6 +17,7 @@
 
 #include <stdio.h>
 #include <iostream>
+#include <stdlib.h>
 
 #include "region.h"
 #include "utils.h"
@@ -48,7 +49,7 @@ int RegionFileReader::loadFromFile(const string& filename)
 		return -2;
 
 	// read the header
-	size_t count = fread(offsets, 4096, 1, f);
+	size_t count = fread(&offsets[0], 4096, 1, f);
 	if (count < 1)
 		return -2;
 
@@ -72,7 +73,7 @@ int RegionFileReader::loadHeaderOnly(const string& filename)
 	fcloser fc(f);
 
 	// read the header
-	size_t count = fread(offsets, 4096, 1, f);
+	size_t count = fread(&offsets[0], 4096, 1, f);
 	if (count < 1)
 		return -2;
 
@@ -128,4 +129,120 @@ void RegionChunkIterator::advance()
 	}
 	if (current.z >= basechunk.z + 32)
 		end = true;
+}
+
+
+
+RegionCacheStats& RegionCacheStats::operator+=(const RegionCacheStats& rcs)
+{
+	hits += rcs.hits;
+	misses += rcs.misses;
+	read += rcs.read;
+	skipped += rcs.skipped;
+	missing += rcs.missing;
+	reqmissing += rcs.reqmissing;
+	corrupt += rcs.corrupt;
+	return *this;
+}
+
+
+int RegionCache::getDecompressedChunk(const PosChunkIdx& ci, vector<uint8_t>& buf)
+{
+	PosRegionIdx ri = ci.toChunkIdx().getRegionIdx();
+	int e = getEntryNum(ri);
+	int state = regiontable.getDiskState(ri);
+	
+	if (state == RegionSet::REGION_UNKNOWN)
+		stats.misses++;
+	else
+		stats.hits++;
+	
+	// if we already tried and failed to read this region, don't try again
+	if (state == RegionSet::REGION_CORRUPTED || state == RegionSet::REGION_MISSING)
+	{
+		// actually, it shouldn't even be possible to get here, since the disk state
+		//  flags for all chunks in the region should have been set the first time we failed
+		cerr << "cache invariant failure!  tried to read already-failed region" << endl;
+		return -1;
+	}
+	
+	// if the region is in the cache, try to extract the chunk from it
+	if (state == RegionSet::REGION_CACHED)
+	{
+		if (entries[e].ri != ri)
+		{
+			cerr << "grievous region cache failure!" << endl;
+			cerr << "[" << ri.x << "," << ri.z << "]   [" << entries[e].ri.x << "," << entries[e].ri.z << "]" << endl;
+			exit(-1);
+		}
+		return entries[e].regionfile.decompressChunk(ci.toChunkIdx(), buf);
+	}
+
+	// if this is a full render and the region is not required, we already know it doesn't exist
+	bool req = regiontable.isRequired(ri);
+	if (fullrender && !req)
+	{
+		stats.skipped++;
+		regiontable.setDiskState(ri, RegionSet::REGION_MISSING);
+		for (RegionChunkIterator it(ri.toRegionIdx()); !it.end; it.advance())
+			chunktable.setDiskState(it.current, ChunkSet::CHUNK_MISSING);
+		return -1;
+	}
+	
+	// okay, we actually have to read the region from disk, if it's there
+	readRegionFile(ri);
+	
+	// check whether the read succeeded; try to extract the chunk if so
+	state = regiontable.getDiskState(ri);
+	if (state == RegionSet::REGION_CORRUPTED)
+	{
+		stats.corrupt++;
+		return -1;
+	}
+	if (state == RegionSet::REGION_MISSING)
+	{
+		if (req)
+			stats.reqmissing++;
+		else
+			stats.missing++;
+		return -1;
+	}
+	if (state != RegionSet::REGION_CACHED || entries[e].ri != ri)
+	{
+		cerr << "grievous region cache failure!" << endl;
+		cerr << "[" << ri.x << "," << ri.z << "]   [" << entries[e].ri.x << "," << entries[e].ri.z << "]" << endl;
+		exit(-1);
+	}
+	stats.read++;
+	return entries[e].regionfile.decompressChunk(ci.toChunkIdx(), buf);
+}
+
+void RegionCache::readRegionFile(const PosRegionIdx& ri)
+{
+	// read the region file from disk, if it's there
+	string filename = inputpath + "/region/" + ri.toRegionIdx().toFileName();
+	int result = readbuf.loadFromFile(filename);
+	if (result == -1)
+	{
+		regiontable.setDiskState(ri, RegionSet::REGION_MISSING);
+		for (RegionChunkIterator it(ri.toRegionIdx()); !it.end; it.advance())
+			chunktable.setDiskState(it.current, ChunkSet::CHUNK_MISSING);
+		return;
+	}
+	if (result == -2)
+	{
+		regiontable.setDiskState(ri, RegionSet::REGION_CORRUPTED);
+		for (RegionChunkIterator it(ri.toRegionIdx()); !it.end; it.advance())
+			chunktable.setDiskState(it.current, ChunkSet::CHUNK_MISSING);
+		return;
+	}
+	
+	// read was successful; evict current tenant of chunk's cache slot
+	int e = getEntryNum(ri);
+	if (entries[e].ri.valid())
+		regiontable.setDiskState(entries[e].ri, RegionSet::REGION_UNKNOWN);
+	// ...and put this region's data into the slot
+	entries[e].regionfile.swap(readbuf);
+	entries[e].ri = ri;
+	regiontable.setDiskState(ri, RegionSet::REGION_CACHED);
 }

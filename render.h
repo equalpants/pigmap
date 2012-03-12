@@ -34,7 +34,7 @@ struct RenderStats
 	int64_t reqchunkcount, reqregioncount, reqtilecount;  // number of required chunks/regions and base tiles
 	uint64_t heapusage;  // estimated peak heap memory usage (if available)
 	ChunkCacheStats chunkcache;
-	RegionStats region;
+	RegionCacheStats regioncache;
 
 	RenderStats() : reqchunkcount(0), reqregioncount(0), reqtilecount(0), heapusage(0) {}
 };
@@ -54,13 +54,14 @@ struct RenderJob : private nocopy
 	std::auto_ptr<ChunkTable> chunktable;
 	std::auto_ptr<ChunkCache> chunkcache;
 	std::auto_ptr<RegionTable> regiontable;
+	std::auto_ptr<RegionCache> regioncache;
 	std::auto_ptr<TileTable> tiletable;
 	std::auto_ptr<TileCache> tilecache;
 	std::auto_ptr<SceneGraph> scenegraph;  // reuse this for each tile to avoid reallocation
 	RenderStats stats;
 
 	// don't actually draw anything or read chunks; just iterate through the data structures
-	// ...scenegraph and chunkcache are not required if in test mode
+	// ...scenegraph, chunkcache, and regioncache are not required if in test mode
 	bool testmode;
 };
 

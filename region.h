@@ -44,7 +44,7 @@ struct RegionFileReader
 	// chunk offsets are big-endian; lower (that is, 4th) byte is size in sectors, upper 3 bytes are
 	//  sector offset *in region file* (one more than the offset into chunkdata)
 	// offsets are indexed by Z*32 + X
-	uint32_t offsets[32 * 32];
+	std::vector<uint32_t> offsets;
 	// each set of chunk data contains:
 	//  -a 4-byte big-endian data length (not including the length field itself)
 	//  -a single-byte version: 1 for gzip, 2 for zlib (this byte *is* included in the length)
@@ -53,7 +53,14 @@ struct RegionFileReader
 
 	RegionFileReader()
 	{
-		chunkdata.reserve(4194304);
+		offsets.resize(32 * 32);
+		chunkdata.reserve(8388608);
+	}
+	
+	void swap(RegionFileReader& rfr)
+	{
+		offsets.swap(rfr.offsets);
+		chunkdata.swap(rfr.chunkdata);
 	}
 
 	// extract values from the offsets
@@ -96,6 +103,63 @@ struct RegionChunkIterator
 
 	// move to the next chunk, or to the end
 	void advance();
+};
+
+
+struct RegionCacheStats
+{
+	int64_t hits, misses;
+	// types of misses:
+	int64_t read;  // successfully read from disk
+	int64_t skipped;  // assumed not to exist because not required in a full render
+	int64_t missing;  // non-required region not present on disk
+	int64_t reqmissing;  // required region not present on disk
+	int64_t corrupt;  // found on disk, but failed to read
+
+	RegionCacheStats() : hits(0), misses(0), read(0), skipped(0), missing(0), reqmissing(0), corrupt(0) {}
+
+	RegionCacheStats& operator+=(const RegionCacheStats& rs);
+};
+
+struct RegionCacheEntry
+{
+	PosRegionIdx ri;  // or [-1, -1] if this entry is empty
+	RegionFileReader regionfile;
+	
+	RegionCacheEntry() : ri(-1,-1) {}
+};
+
+#define RCACHEBITSX 1
+#define RCACHEBITSZ 1
+#define RCACHEXSIZE (1 << RCACHEBITSX)
+#define RCACHEZSIZE (1 << RCACHEBITSZ)
+#define RCACHESIZE (RCACHEXSIZE * RCACHEZSIZE)
+#define RCACHEXMASK (RCACHEXSIZE - 1)
+#define RCACHEZMASK (RCACHEZSIZE - 1)
+
+struct RegionCache : private nocopy
+{
+	RegionCacheEntry entries[RCACHESIZE];
+
+	ChunkTable& chunktable;
+	RegionTable& regiontable;
+	RegionCacheStats& stats;
+	std::string inputpath;
+	bool fullrender;
+	RegionFileReader readbuf;
+	RegionCache(ChunkTable& ctable, RegionTable& rtable, const std::string& inpath, bool fullr, RegionCacheStats& st)
+		: chunktable(ctable), regiontable(rtable), inputpath(inpath), fullrender(fullr), stats(st)
+	{
+	}
+
+	// attempt to decompress a chunk into a buffer; return 0 for success, -1 for missing chunk,
+	//  -2 for other errors
+	// (this is not const only because zlib won't take const pointers for input)
+	int getDecompressedChunk(const PosChunkIdx& ci, std::vector<uint8_t>& buf);
+
+	static int getEntryNum(const PosRegionIdx& ri) {return (ri.x & RCACHEXMASK) * RCACHEZSIZE + (ri.z & RCACHEZMASK);}
+
+	void readRegionFile(const PosRegionIdx& ri);
 };
 
 

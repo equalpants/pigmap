@@ -75,17 +75,6 @@ ChunkCacheStats& ChunkCacheStats::operator+=(const ChunkCacheStats& ccs)
 	return *this;
 }
 
-RegionStats& RegionStats::operator+=(const RegionStats& rs)
-{
-	read += rs.read;
-	chunksread += rs.chunksread;
-	skipped += rs.skipped;
-	missing += rs.missing;
-	reqmissing += rs.reqmissing;
-	corrupt += rs.corrupt;
-	return *this;
-}
-
 
 
 
@@ -108,7 +97,7 @@ ChunkData* ChunkCache::getData(const PosChunkIdx& ci)
 	{
 		if (entries[e].ci != ci)
 		{
-			cerr << "grievous cache failure!" << endl;
+			cerr << "grievous chunk cache failure!" << endl;
 			cerr << "[" << ci.x << "," << ci.z << "]   [" << entries[e].ci.x << "," << entries[e].ci.z << "]" << endl;
 			exit(-1);
 		}
@@ -126,7 +115,7 @@ ChunkData* ChunkCache::getData(const PosChunkIdx& ci)
 
 	// okay, we actually have to read the chunk from disk
 	if (regionformat)
-		readRegionFile(ci.toChunkIdx().getRegionIdx());
+		readFromRegionCache(ci);
 	else
 		readChunkFile(ci);
 
@@ -147,7 +136,7 @@ ChunkData* ChunkCache::getData(const PosChunkIdx& ci)
 	}
 	if (state != ChunkSet::CHUNK_CACHED || entries[e].ci != ci)
 	{
-		cerr << "grievous cache failure!" << endl;
+		cerr << "grievous chunk cache failure!" << endl;
 		cerr << "[" << ci.x << "," << ci.z << "]   [" << entries[e].ci.x << "," << entries[e].ci.z << "]" << endl;
 		exit(-1);
 	}
@@ -171,7 +160,34 @@ void ChunkCache::readChunkFile(const PosChunkIdx& ci)
 		return;
 	}
 
-	// gzip read was successful; evict current tenant of this chunk's slot, if there is one
+	// gzip read was successful; extract the data we need from the chunk
+	//  and put it in the cache
+	parseReadBuf(ci);
+}
+
+void ChunkCache::readFromRegionCache(const PosChunkIdx& ci)
+{
+	// try to decompress the chunk data
+	int result = regioncache.getDecompressedChunk(ci, readbuf);
+	if (result == -1)
+	{
+		chunktable.setDiskState(ci, ChunkSet::CHUNK_MISSING);
+		return;
+	}
+	if (result == -2)
+	{
+		chunktable.setDiskState(ci, ChunkSet::CHUNK_CORRUPTED);
+		return;
+	}
+	
+	// decompression was successful; extract the data we need from the chunk
+	//  and put it in the cache
+	parseReadBuf(ci);
+}
+
+void ChunkCache::parseReadBuf(const PosChunkIdx& ci)
+{
+	// evict current tenant of chunk's cache slot
 	int e = getEntryNum(ci);
 	if (entries[e].ci.valid())
 		chunktable.setDiskState(entries[e].ci, ChunkSet::CHUNK_UNKNOWN);
@@ -184,82 +200,4 @@ void ChunkCache::readChunkFile(const PosChunkIdx& ci)
 	}
 	else
 		chunktable.setDiskState(ci, ChunkSet::CHUNK_CORRUPTED);
-}
-
-void ChunkCache::readRegionFile(const PosRegionIdx& ri)
-{
-	// if we already tried and failed to read this region, don't try again
-	if (regiontable.hasFailed(ri))
-	{
-		// actually, it shouldn't even be possible to get here, since the disk state
-		//  flags for all chunks in the region should have been set the first time we failed
-		cerr << "cache invariant failure!  tried to read already-failed region" << endl;
-		return;
-	}
-
-	// if this is a full render and the region is not required, we already know it doesn't exist
-	bool req = regiontable.isRequired(ri);
-	if (fullrender && !req)
-	{
-		regstats.skipped++;
-		for (RegionChunkIterator it(ri.toRegionIdx()); !it.end; it.advance())
-			chunktable.setDiskState(it.current, ChunkSet::CHUNK_MISSING);
-		return;
-	}
-
-	// read the region file from disk, if it's there
-	string filename = inputpath + "/region/" + ri.toRegionIdx().toFileName();
-	int result = regionfile.loadFromFile(filename);
-	if (result == -1)
-	{
-		if (req)
-			regstats.reqmissing++;
-		else
-			regstats.missing++;
-		regiontable.setFailed(ri);
-		for (RegionChunkIterator it(ri.toRegionIdx()); !it.end; it.advance())
-			chunktable.setDiskState(it.current, ChunkSet::CHUNK_MISSING);
-		return;
-	}
-	if (result == -2)
-	{
-		regstats.corrupt++;
-		regiontable.setFailed(ri);
-		for (RegionChunkIterator it(ri.toRegionIdx()); !it.end; it.advance())
-			chunktable.setDiskState(it.current, ChunkSet::CHUNK_MISSING);
-		return;
-	}
-
-	// region file was successfully read; go through all the chunks in the region and
-	//  try to read them into the cache
-	regstats.read++;
-	for (RegionChunkIterator it(ri.toRegionIdx()); !it.end; it.advance())
-	{
-		// try to decompress the chunk data
-		result = regionfile.decompressChunk(it.current, readbuf);
-		if (result == -1)
-		{
-			chunktable.setDiskState(it.current, ChunkSet::CHUNK_MISSING);
-			continue;
-		}
-		if (result == -2)
-		{
-			chunktable.setDiskState(it.current, ChunkSet::CHUNK_CORRUPTED);
-			continue;
-		}
-		// decompression was successful; evict current tenant of chunk's cache slot
-		int e = getEntryNum(it.current);
-		if (entries[e].ci.valid())
-			chunktable.setDiskState(entries[e].ci, ChunkSet::CHUNK_UNKNOWN);
-		entries[e].ci = ChunkIdx(-1,-1);
-		// ...and put this chunk's data into the slot, assuming the data can actually be parsed
-		if (entries[e].data.loadFromFile(readbuf))
-		{
-			regstats.chunksread++;
-			entries[e].ci = it.current;
-			chunktable.setDiskState(it.current, ChunkSet::CHUNK_CACHED);
-		}
-		else
-			chunktable.setDiskState(it.current, ChunkSet::CHUNK_CORRUPTED);
-	}
 }

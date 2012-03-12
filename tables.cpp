@@ -376,12 +376,12 @@ void RegionGroup::setRequired(const PosRegionIdx& ri)
 	regionsets[rsi]->setRequired(ri);
 }
 
-void RegionGroup::setFailed(const PosRegionIdx& ri)
+void RegionGroup::setDiskState(const PosRegionIdx& ri, int state)
 {
 	int rsi = regionSetIdx(ri);
 	if (regionsets[rsi] == NULL)
 		regionsets[rsi] = new RegionSet;
-	regionsets[rsi]->setFailed(ri);
+	regionsets[rsi]->setDiskState(ri, state);
 }
 
 PosRegionIdx RegionTable::toPosRegionIdx(int rgi, int rsi, int bi)
@@ -404,12 +404,12 @@ void RegionTable::setRequired(const PosRegionIdx& ri)
 	regiongroups[rgi]->setRequired(ri);
 }
 
-void RegionTable::setFailed(const PosRegionIdx& ri)
+void RegionTable::setDiskState(const PosRegionIdx& ri, int state)
 {
 	int rgi = regionGroupIdx(ri);
 	if (regiongroups[rgi] == NULL)
 		regiongroups[rgi] = new RegionGroup;
-	regiongroups[rgi]->setFailed(ri);
+	regiongroups[rgi]->setDiskState(ri, state);
 }
 
 void RegionTable::copyFrom(const RegionTable& rtable)

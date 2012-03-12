@@ -290,7 +290,7 @@ struct TileGroupIterator
 
 
 
-#define RTDATASIZE 2
+#define RTDATASIZE 3
 
 #define RTLEVEL1BITS 4
 #define RTLEVEL2BITS 4
@@ -324,14 +324,23 @@ struct PosRegionIdx
 
 struct RegionSet
 {
-	// each region gets two bits: first is whether it's required, second is whether it has already failed to
-	//  read from disk (either by being missing or corrupted)
+	// each region gets 3 bits:
+	//  -first bit is 1 for required (must be drawn), 0 for not required
+	//  -last two bits describe state of region on disk:
+	//    00: have not tried to find region on disk yet
+	//    01: have successfully read region from disk (i.e. it should be in the cache, if we still need it)
+	//    10: region does not exist on disk
+	//    11: region file is corrupted
+	static const int REGION_UNKNOWN = 0;
+	static const int REGION_CACHED = 1;
+	static const int REGION_MISSING = 2;
+	static const int REGION_CORRUPTED = 3;
 	std::bitset<RTLEVEL1SIZE*RTLEVEL1SIZE*RTDATASIZE> bits;
 
 	size_t bitIdx(const PosRegionIdx& ri) const {return (RTGETLEVEL1(ri.z) * RTLEVEL1SIZE + RTGETLEVEL1(ri.x)) * RTDATASIZE;}
 
 	void setRequired(const PosRegionIdx& ri) {bits.set(bitIdx(ri));}
-	void setFailed(const PosRegionIdx& ri) {bits.set(bitIdx(ri)+1);}
+	void setDiskState(const PosRegionIdx& ri, int state) {size_t bi = bitIdx(ri); bits[bi+1] = state & 0x2; bits[bi+2] = state & 0x1;}
 };
 
 struct RegionGroup
@@ -345,7 +354,7 @@ struct RegionGroup
 	RegionSet* getRegionSet(const PosRegionIdx& ri) const {return regionsets[regionSetIdx(ri)];}
 
 	void setRequired(const PosRegionIdx& ri);
-	void setFailed(const PosRegionIdx& ri);
+	void setDiskState(const PosRegionIdx& ri, int state);
 };
 
 struct RegionTable : private nocopy
@@ -363,10 +372,10 @@ struct RegionTable : private nocopy
 	static PosRegionIdx toPosRegionIdx(int rgi, int rsi, int bi);
 	
 	bool isRequired(const PosRegionIdx& ri) const {RegionSet *rs = getRegionSet(ri); return (rs == NULL) ? false : rs->bits[rs->bitIdx(ri)];}
-	bool hasFailed(const PosRegionIdx& ri) const {RegionSet *rs = getRegionSet(ri); return (rs == NULL) ? false : rs->bits[rs->bitIdx(ri)+1];}
+	int getDiskState(const PosRegionIdx& ri) const {RegionSet *rs = getRegionSet(ri); return (rs == NULL) ? 0 : ((rs->bits[rs->bitIdx(ri)+1] ? 0x2 : 0) | (rs->bits[rs->bitIdx(ri)+2] ? 0x1 : 0));}
 
 	void setRequired(const PosRegionIdx& ri);
-	void setFailed(const PosRegionIdx& ri);
+	void setDiskState(const PosRegionIdx& ri, int state);
 
 	void copyFrom(const RegionTable& rtable);
 };

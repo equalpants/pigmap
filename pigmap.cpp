@@ -66,8 +66,9 @@ void printStats(int seconds, const RenderStats& stats)
 	cout << "chunk cache: " << stats.chunkcache.hits << " hits   " << stats.chunkcache.misses << " misses" << endl;
 	cout << "             " << stats.chunkcache.read << " read   " << stats.chunkcache.skipped << " skipped   " << stats.chunkcache.missing << " missing   "
 	     << stats.chunkcache.reqmissing << " reqmissing   " << stats.chunkcache.corrupt << " corrupt" << endl;
-	cout << "region requests: " << stats.region.read << " read (containing " << stats.region.chunksread << " chunks)   " << stats.region.skipped << " skipped" << endl;
-	cout << "                 " << stats.region.missing << " missing   " << stats.region.reqmissing << " reqmissing   " << stats.region.corrupt << " corrupt" << endl;
+	cout << "region cache: " << stats.regioncache.hits << " hits   " << stats.regioncache.misses << " misses" << endl;
+	cout << "              " << stats.regioncache.read << " read   " << stats.regioncache.skipped << " skipped   " << stats.regioncache.missing << " missing   "
+	     << stats.regioncache.reqmissing << " reqmissing   " << stats.regioncache.corrupt << " corrupt" << endl;
 #if USE_MALLINFO
 	cout << "heap usage: " << stats.heapusage << " bytes" << endl;
 #endif
@@ -77,7 +78,8 @@ void runSingleThread(RenderJob& rj)
 {
 	cout << "single thread will render " << rj.stats.reqtilecount << " base tiles" << endl;
 	// allocate storage/caches
-	rj.chunkcache.reset(new ChunkCache(*rj.chunktable, *rj.regiontable, rj.inputpath, rj.fullrender, rj.regionformat, rj.stats.chunkcache, rj.stats.region));
+	rj.regioncache.reset(new RegionCache(*rj.chunktable, *rj.regiontable, rj.inputpath, rj.fullrender, rj.stats.regioncache));
+	rj.chunkcache.reset(new ChunkCache(*rj.chunktable, *rj.regiontable, *rj.regioncache, rj.inputpath, rj.fullrender, rj.regionformat, rj.stats.chunkcache));
 	rj.tilecache.reset(new TileCache(rj.mp));
 	rj.scenegraph.reset(new SceneGraph);
 	RGBAImage topimg;
@@ -204,10 +206,12 @@ void runMultithreaded(RenderJob& rj, int threads)
 		rjs[i].regiontable.reset(new RegionTable);
 		rjs[i].regiontable->copyFrom(*rj.regiontable);
 		if (!rjs[i].testmode)
-			rjs[i].chunkcache.reset(new ChunkCache(*rjs[i].chunktable, *rjs[i].regiontable, rjs[i].inputpath, rjs[i].fullrender, rjs[i].regionformat, rjs[i].stats.chunkcache, rjs[i].stats.region));
-		rjs[i].tilecache.reset(new TileCache(rjs[i].mp));
-		if (!rjs[i].testmode)
+		{
+			rjs[i].regioncache.reset(new RegionCache(*rjs[i].chunktable, *rjs[i].regiontable, rjs[i].inputpath, rjs[i].fullrender, rjs[i].stats.regioncache));
+			rjs[i].chunkcache.reset(new ChunkCache(*rjs[i].chunktable, *rjs[i].regiontable, *rjs[i].regioncache, rjs[i].inputpath, rjs[i].fullrender, rjs[i].regionformat, rjs[i].stats.chunkcache));
 			rjs[i].scenegraph.reset(new SceneGraph);
+		}
+		rjs[i].tilecache.reset(new TileCache(rjs[i].mp));
 	}
 
 	// divide the required tiles evenly among the threads: find a zoom level that has enough tiles for us
@@ -256,7 +260,7 @@ void runMultithreaded(RenderJob& rj, int threads)
 	for (int i = 0; i < threads; i++)
 	{
 		rj.stats.chunkcache += rjs[i].stats.chunkcache;
-		rj.stats.region += rjs[i].stats.region;
+		rj.stats.regioncache += rjs[i].stats.regioncache;
 	}
 	rj.stats.heapusage = getHeapUsage();
 
