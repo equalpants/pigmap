@@ -191,7 +191,7 @@ void ChunkCache::parseReadBuf(const PosChunkIdx& ci)
 	int e = getEntryNum(ci);
 	if (entries[e].ci.valid())
 		chunktable.setDiskState(entries[e].ci, ChunkSet::CHUNK_UNKNOWN);
-	entries[e].ci = ChunkIdx(-1,-1);
+	entries[e].ci = PosChunkIdx(-1,-1);
 	// ...and put this chunk's data into the slot, assuming the data can actually be parsed
 	if (entries[e].data.loadFromFile(readbuf))
 	{

@@ -146,7 +146,10 @@ struct RegionCache : private nocopy
 	RegionCacheStats& stats;
 	std::string inputpath;
 	bool fullrender;
-	RegionFileReader readbuf;
+	// readbuf is an extra less-important cache entry--when a new region is read, it's this entry which will be trashed
+	//  and its storage used for the read (which might fail), but if the read succeeds, the new region is swapped
+	//  into its proper place in the cache, and the previous tenant there moves here
+	RegionCacheEntry readbuf;
 	RegionCache(ChunkTable& ctable, RegionTable& rtable, const std::string& inpath, bool fullr, RegionCacheStats& st)
 		: chunktable(ctable), regiontable(rtable), inputpath(inpath), fullrender(fullr), stats(st)
 	{

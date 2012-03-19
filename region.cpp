@@ -169,13 +169,19 @@ int RegionCache::getDecompressedChunk(const PosChunkIdx& ci, vector<uint8_t>& bu
 	// if the region is in the cache, try to extract the chunk from it
 	if (state == RegionSet::REGION_CACHED)
 	{
-		if (entries[e].ri != ri)
+		// try the "real" cache entry, then the extra readbuf
+		if (entries[e].ri == ri)
 		{
-			cerr << "grievous region cache failure!" << endl;
-			cerr << "[" << ri.x << "," << ri.z << "]   [" << entries[e].ri.x << "," << entries[e].ri.z << "]" << endl;
-			exit(-1);
+			return entries[e].regionfile.decompressChunk(ci.toChunkIdx(), buf);
 		}
-		return entries[e].regionfile.decompressChunk(ci.toChunkIdx(), buf);
+		else if (readbuf.ri == ri)
+		{
+			return readbuf.regionfile.decompressChunk(ci.toChunkIdx(), buf);
+		}
+		// if it wasn't in one of those two places, it shouldn't have been marked as cached
+		cerr << "grievous region cache failure!" << endl;
+		cerr << "[" << ri.x << "," << ri.z << "]   [" << entries[e].ri.x << "," << entries[e].ri.z << "]   [" << readbuf.ri.x << "," << readbuf.ri.z << "]" << endl;
+		exit(-1);
 	}
 
 	// if this is a full render and the region is not required, we already know it doesn't exist
@@ -207,6 +213,7 @@ int RegionCache::getDecompressedChunk(const PosChunkIdx& ci, vector<uint8_t>& bu
 			stats.missing++;
 		return -1;
 	}
+	// since we've actually just done a read, the region should now be in a real cache entry, not the readbuf
 	if (state != RegionSet::REGION_CACHED || entries[e].ri != ri)
 	{
 		cerr << "grievous region cache failure!" << endl;
@@ -219,9 +226,14 @@ int RegionCache::getDecompressedChunk(const PosChunkIdx& ci, vector<uint8_t>& bu
 
 void RegionCache::readRegionFile(const PosRegionIdx& ri)
 {
+	// forget the data in the readbuf
+	if (readbuf.ri.valid())
+		regiontable.setDiskState(readbuf.ri, RegionSet::REGION_UNKNOWN);
+	readbuf.ri = PosRegionIdx(-1,-1);
+	
 	// read the region file from disk, if it's there
 	string filename = inputpath + "/region/" + ri.toRegionIdx().toFileName();
-	int result = readbuf.loadFromFile(filename);
+	int result = readbuf.regionfile.loadFromFile(filename);
 	if (result == -1)
 	{
 		regiontable.setDiskState(ri, RegionSet::REGION_MISSING);
@@ -237,12 +249,10 @@ void RegionCache::readRegionFile(const PosRegionIdx& ri)
 		return;
 	}
 	
-	// read was successful; evict current tenant of chunk's cache slot
+	// read was successful; evict current tenant of chunk's cache slot (swap it into the readbuf)
 	int e = getEntryNum(ri);
-	if (entries[e].ri.valid())
-		regiontable.setDiskState(entries[e].ri, RegionSet::REGION_UNKNOWN);
-	// ...and put this region's data into the slot
-	entries[e].regionfile.swap(readbuf);
+	entries[e].regionfile.swap(readbuf.regionfile);
+	readbuf.ri = entries[e].ri;
 	entries[e].ri = ri;
 	regiontable.setDiskState(ri, RegionSet::REGION_CACHED);
 }
