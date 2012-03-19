@@ -11,7 +11,7 @@ chunk.o : chunk.cpp chunk.h map.h region.h tables.h utils.h
 	g++ -c chunk.cpp -O3
 map.o : map.cpp map.h utils.h
 	g++ -c map.cpp -O3
-render.o : render.cpp map.h render.h rgba.h tables.h utils.h
+render.o : render.cpp blockimages.h chunk.h map.h render.h rgba.h tables.h utils.h
 	g++ -c render.cpp -O3
 region.o : region.cpp map.h region.h tables.h utils.h
 	g++ -c region.cpp -O3

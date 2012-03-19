@@ -93,8 +93,8 @@ struct ChunkCacheEntry
 	ChunkCacheEntry() : ci(-1,-1) {}
 };
 
-#define CACHEBITSX 6
-#define CACHEBITSZ 6
+#define CACHEBITSX 5
+#define CACHEBITSZ 5
 #define CACHEXSIZE (1 << CACHEBITSX)
 #define CACHEZSIZE (1 << CACHEBITSZ)
 #define CACHESIZE (CACHEXSIZE * CACHEZSIZE)
