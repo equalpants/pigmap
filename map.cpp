@@ -222,9 +222,14 @@ ChunkIdx operator-(const ChunkIdx& ci1, const ChunkIdx& ci2) {ChunkIdx ci = ci1;
 
 
 
-string RegionIdx::toFileName() const
+string RegionIdx::toOldFileName() const
 {
 	return "r." + tostring(x) + "." + tostring(z) + ".mcr";
+}
+
+string RegionIdx::toAnvilFileName() const
+{
+	return "r." + tostring(x) + "." + tostring(z) + ".mca";
 }
 
 bool RegionIdx::fromFilePath(const std::string& filename, RegionIdx& result)
@@ -232,10 +237,10 @@ bool RegionIdx::fromFilePath(const std::string& filename, RegionIdx& result)
 	string::size_type pos3 = filename.rfind('.');
 	string::size_type pos2 = filename.rfind('.', pos3 - 1);
 	string::size_type pos = filename.rfind('.', pos2 - 1);
-	// must have three dots, must have only "mcr" after last dot, must have only "r"
+	// must have three dots, must have only "mcr" or "mca" after last dot, must have only "r"
 	//  and possibly some directories before the first dot
 	if (pos == string::npos || pos2 == string::npos || pos3 == string::npos ||
-		filename.compare(pos3, filename.size() - pos3, ".mcr") != 0 ||
+		(filename.compare(pos3, filename.size() - pos3, ".mcr") != 0 && filename.compare(pos3, filename.size() - pos3, ".mca") != 0) ||
 		pos < 1 || filename.compare(pos - 1, 1, "r") != 0 ||
 		(pos > 1 && filename[pos - 2] != '/'))
 		return false;

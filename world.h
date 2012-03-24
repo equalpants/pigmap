@@ -37,6 +37,9 @@ bool makeAllRegionsRequired(const std::string& inputdir, ChunkTable& chunktable,
 
 // read a list of region filenames from a file; set the regions to required in the RegionTable; set the chunks they
 //  contain to required in the ChunkTable; set all tiles touched by those chunks to required in the TileTable
+// the region filenames can be either old-style (".mcr") or Anvil (".mca"), but only the coordinates from the filename
+//  will be considered--when rendering is actually performed, Anvil regions will be preferred to old-style regions
+//  even if ".mcr" was used in this regionlist
 // returns 0 on success, -1 if baseZoom is too small, -2 for other errors (can't read regionlist, world too big
 //  for our internal data structures, etc.)
 int readRegionlist(const std::string& regionlist, const std::string& inputdir, ChunkTable& chunktable, TileTable& tiletable, RegionTable& regiontable, const MapParams& mp, int64_t& reqrchunkcount, int64_t& reqtilecount, int64_t& reqregioncount);

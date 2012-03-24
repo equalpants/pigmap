@@ -36,6 +36,12 @@ struct ChunkOffset
 	}
 };
 
+struct string84
+{
+	std::string s;
+	explicit string84(const std::string& sss) : s(sss) {}
+};
+
 struct RegionFileReader
 {
 	// region file is broken into 4096-byte sectors; first sector is the header that holds the
@@ -50,6 +56,8 @@ struct RegionFileReader
 	//  -a single-byte version: 1 for gzip, 2 for zlib (this byte *is* included in the length)
 	//  -length - 1 bytes of actual compressed data
 	std::vector<uint8_t> chunkdata;
+	// whether this data was read from an Anvil region file or an old-style one
+	bool anvil;
 
 	RegionFileReader()
 	{
@@ -72,7 +80,8 @@ struct RegionFileReader
 
 	// attempt to read a region file; return 0 for success, -1 for file not found, -2 for
 	//  other errors
-	int loadFromFile(const std::string& filename);
+	// looks for an Anvil region file (.mca) first, then an old-style one (.mcr)
+	int loadFromFile(const RegionIdx& ri, const std::string& inputpath);
 
 	// attempt to decompress a chunk into a buffer; return 0 for success, -1 for missing chunk,
 	//  -2 for other errors
@@ -81,13 +90,13 @@ struct RegionFileReader
 
 	// attempt to read only the header (i.e. the chunk offsets) from a region file; return 0
 	//  for success, -1 for file not found, -2 for other errors
-	int loadHeaderOnly(const std::string& filename);
+	// looks for an Anvil region file (.mca) first, then an old-style one (.mcr)
+	int loadHeaderOnly(const RegionIdx& ri, const std::string& inputpath);
 
 	// open a region file, load only its header, and return a list of chunks it contains (i.e. the ones that
 	//  actually currently exist)
-	// (RegionIdx is needed to compute the ChunkIdxs)
-	// ...returns false if region file can't be read
-	bool getContainedChunks(const RegionIdx& ri, const std::string& filename, std::vector<ChunkIdx>& chunks);
+	// ...returns 0 for success, -1 for file not found, -2 for other errors
+	int getContainedChunks(const RegionIdx& ri, const string84& inputpath, std::vector<ChunkIdx>& chunks);
 };
 
 // iterates over the chunks in a region
@@ -125,6 +134,7 @@ struct RegionCacheEntry
 {
 	PosRegionIdx ri;  // or [-1, -1] if this entry is empty
 	RegionFileReader regionfile;
+	bool anvil;  // whether the region data is Anvil or old-style
 	
 	RegionCacheEntry() : ri(-1,-1) {}
 };
@@ -158,7 +168,7 @@ struct RegionCache : private nocopy
 	// attempt to decompress a chunk into a buffer; return 0 for success, -1 for missing chunk,
 	//  -2 for other errors
 	// (this is not const only because zlib won't take const pointers for input)
-	int getDecompressedChunk(const PosChunkIdx& ci, std::vector<uint8_t>& buf);
+	int getDecompressedChunk(const PosChunkIdx& ci, std::vector<uint8_t>& buf, bool& anvil);
 
 	static int getEntryNum(const PosRegionIdx& ri) {return (ri.x & RCACHEXMASK) * RCACHEZSIZE + (ri.z & RCACHEZMASK);}
 

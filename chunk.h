@@ -44,12 +44,16 @@ struct BlockOffset
 
 struct ChunkData
 {
-	uint8_t blockIDs[32768];  // one byte per block
-	uint8_t blockData[16384];  // 4 bits per block
+	bool anvil;  // whether this data came from an Anvil chunk or an old-style one
+	uint8_t blockIDs[65536];  // one byte per block
+	uint8_t blockData[32768];  // 4 bits per block
 
 	// these guys assume that the BlockIdx actually points to this chunk
 	//  (so they only look at the lower bits)
-	uint8_t id(const BlockOffset& bo) const {return blockIDs[(bo.x * 16 + bo.z) * 128 + bo.y];}
+	uint8_t id(const BlockOffset& bo) const
+	{
+		return blockIDs[(bo.x * 16 + bo.z) * 128 + bo.y];
+	}
 	uint8_t data(const BlockOffset& bo) const
 	{
 		int i = (bo.x * 16 + bo.z) * 128 + bo.y;
@@ -58,7 +62,8 @@ struct ChunkData
 		return (blockData[i/2] & 0xf0) >> 4;
 	}
 
-	bool loadFromFile(const std::vector<uint8_t>& filebuf);
+	bool loadFromOldFile(const std::vector<uint8_t>& filebuf);
+	bool loadFromAnvilFile(const std::vector<uint8_t>& filebuf);
 };
 
 
@@ -129,7 +134,7 @@ struct ChunkCache : private nocopy
 
 	void readChunkFile(const PosChunkIdx& ci);
 	void readFromRegionCache(const PosChunkIdx& ci);
-	void parseReadBuf(const PosChunkIdx& ci);
+	void parseReadBuf(const PosChunkIdx& ci, bool anvil);
 };
 
 

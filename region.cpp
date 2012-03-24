@@ -33,10 +33,24 @@ struct fcloser
 	~fcloser() {fclose(f);}
 };
 
-int RegionFileReader::loadFromFile(const string& filename)
+FILE* openRegionFile(const RegionIdx& ri, const string& inputpath, bool& anvil)
+{
+	string filename = inputpath + "/region/" + ri.toAnvilFileName();
+	FILE *anvilfile = fopen(filename.c_str(), "rb");
+	if (anvilfile != NULL)
+	{
+		anvil = true;
+		return anvilfile;
+	}
+	filename = inputpath + "/region/" + ri.toOldFileName();
+	anvil = false;
+	return fopen(filename.c_str(), "rb");
+}
+
+int RegionFileReader::loadFromFile(const RegionIdx& ri, const string& inputpath)
 {
 	// open file
-	FILE *f = fopen(filename.c_str(), "rb");
+	FILE *f = openRegionFile(ri, inputpath, anvil);
 	if (f == NULL)
 		return -1;
 	fcloser fc(f);
@@ -49,7 +63,7 @@ int RegionFileReader::loadFromFile(const string& filename)
 		return -2;
 
 	// read the header
-	size_t count = fread(&offsets[0], 4096, 1, f);
+	size_t count = fread(&(offsets[0]), 4096, 1, f);
 	if (count < 1)
 		return -2;
 
@@ -64,16 +78,16 @@ int RegionFileReader::loadFromFile(const string& filename)
 	return 0;
 }
 
-int RegionFileReader::loadHeaderOnly(const string& filename)
+int RegionFileReader::loadHeaderOnly(const RegionIdx& ri, const string& inputpath)
 {
 	// open file
-	FILE *f = fopen(filename.c_str(), "rb");
+	FILE *f = openRegionFile(ri, inputpath, anvil);
 	if (f == NULL)
 		return -1;
 	fcloser fc(f);
 
 	// read the header
-	size_t count = fread(&offsets[0], 4096, 1, f);
+	size_t count = fread(&(offsets[0]), 4096, 1, f);
 	if (count < 1)
 		return -2;
 
@@ -99,15 +113,16 @@ int RegionFileReader::decompressChunk(const ChunkOffset& co, vector<uint8_t>& bu
 	return 0;
 }
 
-bool RegionFileReader::getContainedChunks(const RegionIdx& ri, const string& filename, vector<ChunkIdx>& chunks)
+int RegionFileReader::getContainedChunks(const RegionIdx& ri, const string84& inputpath, vector<ChunkIdx>& chunks)
 {
 	chunks.clear();
-	if (0 != loadHeaderOnly(filename))
-		return false;
+	int result = loadHeaderOnly(ri, inputpath.s);
+	if (0 != result)
+		return result;
 	for (RegionChunkIterator it(ri); !it.end; it.advance())
 		if (containsChunk(it.current))
 			chunks.push_back(it.current);
-	return true;
+	return 0;
 }
 
 
@@ -146,7 +161,7 @@ RegionCacheStats& RegionCacheStats::operator+=(const RegionCacheStats& rcs)
 }
 
 
-int RegionCache::getDecompressedChunk(const PosChunkIdx& ci, vector<uint8_t>& buf)
+int RegionCache::getDecompressedChunk(const PosChunkIdx& ci, vector<uint8_t>& buf, bool& anvil)
 {
 	PosRegionIdx ri = ci.toChunkIdx().getRegionIdx();
 	int e = getEntryNum(ri);
@@ -172,10 +187,12 @@ int RegionCache::getDecompressedChunk(const PosChunkIdx& ci, vector<uint8_t>& bu
 		// try the "real" cache entry, then the extra readbuf
 		if (entries[e].ri == ri)
 		{
+			anvil = entries[e].anvil;
 			return entries[e].regionfile.decompressChunk(ci.toChunkIdx(), buf);
 		}
 		else if (readbuf.ri == ri)
 		{
+			anvil = readbuf.anvil;
 			return readbuf.regionfile.decompressChunk(ci.toChunkIdx(), buf);
 		}
 		// if it wasn't in one of those two places, it shouldn't have been marked as cached
@@ -221,6 +238,7 @@ int RegionCache::getDecompressedChunk(const PosChunkIdx& ci, vector<uint8_t>& bu
 		exit(-1);
 	}
 	stats.read++;
+	anvil = entries[e].anvil;
 	return entries[e].regionfile.decompressChunk(ci.toChunkIdx(), buf);
 }
 
@@ -232,8 +250,7 @@ void RegionCache::readRegionFile(const PosRegionIdx& ri)
 	readbuf.ri = PosRegionIdx(-1,-1);
 	
 	// read the region file from disk, if it's there
-	string filename = inputpath + "/region/" + ri.toRegionIdx().toFileName();
-	int result = readbuf.regionfile.loadFromFile(filename);
+	int result = readbuf.regionfile.loadFromFile(ri.toRegionIdx(), inputpath);
 	if (result == -1)
 	{
 		regiontable.setDiskState(ri, RegionSet::REGION_MISSING);
@@ -252,7 +269,9 @@ void RegionCache::readRegionFile(const PosRegionIdx& ri)
 	// read was successful; evict current tenant of chunk's cache slot (swap it into the readbuf)
 	int e = getEntryNum(ri);
 	entries[e].regionfile.swap(readbuf.regionfile);
-	readbuf.ri = entries[e].ri;
+	swap(entries[e].ri, readbuf.ri);
+	swap(entries[e].anvil, readbuf.anvil);
+	// mark the entry as vaild and the region as cached
 	entries[e].ri = ri;
 	regiontable.setDiskState(ri, RegionSet::REGION_CACHED);
 }

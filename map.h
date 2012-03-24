@@ -289,12 +289,14 @@ struct RegionIdx
 
 	RegionIdx(int64_t xx, int64_t zz) : x(xx), z(zz) {}
 
-	// just the filename (e.g. "r.-1.2.mcr")
-	std::string toFileName() const;
+	// just the filename (e.g. "r.-1.2.mcr" for old-style, "r.-1.2.mca" for Anvil)
+	std::string toOldFileName() const;
+	std::string toAnvilFileName() const;
 
 	// see if a path is a valid region file and return its RegionIdx if so
 	// ...can be plain filename, relative path, or absolute path; region coords
 	//  depend only on the filename
+	// ...can be either an old (".mcr") or Anvil (".mca") filename
 	static bool fromFilePath(const std::string& filename, RegionIdx& result);
 
 	ChunkIdx baseChunk() const {return ChunkIdx(x*32, z*32);}  // NE corner

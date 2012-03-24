@@ -53,27 +53,27 @@ bool makeAllRegionsRequired(const string& topdir, ChunkTable& chunktable, TileTa
 		// if this is a proper region filename, use it
 		if (RegionIdx::fromFilePath(*it, ri))
 		{
+			PosRegionIdx pri(ri);
+			if (!pri.valid())
+			{
+				cerr << "ignoring extremely-distant region " << *it << " (world may be corrupt)" << endl;
+				continue;
+			}
+			// we might have found this region already, if the world data contains both .mca and .mcr files
+			if (regiontable.isRequired(pri))
+				continue;
 			// get the chunks that currently exist in this region; if there aren't any, ignore it
 			vector<ChunkIdx> chunks;
-			if (!rfreader.getContainedChunks(ri, *it, chunks))
+			if (0 != rfreader.getContainedChunks(ri, string84(topdir), chunks))
 			{
-				cerr << "can't open region " << ri.toFileName() << " to list chunks" << endl;
+				cerr << "can't open region " << *it << " to list chunks" << endl;
 				continue;
 			}
 			if (chunks.empty())
 				continue;
 			// mark the region required
-			PosRegionIdx pri(ri);
-			if (pri.valid())
-			{
-				regiontable.setRequired(pri);
-				reqregioncount++;
-			}
-			else
-			{
-				cerr << "ignoring extremely-distant region " << ri.toFileName() << " (world may be corrupt)" << endl;
-				continue;
-			}
+			regiontable.setRequired(pri);
+			reqregioncount++;
 			// go through the contained chunks
 			for (vector<ChunkIdx>::const_iterator chunk = chunks.begin(); chunk != chunks.end(); chunk++)
 			{
@@ -100,7 +100,7 @@ bool makeAllRegionsRequired(const string& topdir, ChunkTable& chunktable, TileTa
 					else
 					{
 						cerr << "ignoring extremely-distant tile [" << tile->x << "," << tile->y << "]" << endl;
-						cerr << "(world may be corrupt; is region " << ri.toFileName() << " supposed to exist?)" << endl;
+						cerr << "(world may be corrupt; is region " << *it << " supposed to exist?)" << endl;
 						continue;
 					}
 					// now see if the tile fits on the Google map
@@ -148,25 +148,24 @@ int readRegionlist(const string& regionlist, const string& inputdir, ChunkTable&
 		RegionIdx ri(0,0);
 		if (RegionIdx::fromFilePath(regionfile, ri))
 		{
-			vector<ChunkIdx> chunks;
-			if (!rfreader.getContainedChunks(ri, inputdir + "/region/" + ri.toFileName(), chunks))
+			PosRegionIdx pri(ri);
+			if (!pri.valid())
 			{
-				cerr << "can't open region " << ri.toFileName() << " to list chunks" << endl;
+				cerr << "ignoring extremely-distant region " << regionfile << " (world may be corrupt)" << endl;
+				continue;
+			}
+			if (regiontable.isRequired(pri))
+				continue;
+			vector<ChunkIdx> chunks;
+			if (0 != rfreader.getContainedChunks(ri, string84(inputdir), chunks))
+			{
+				cerr << "can't open region " << regionfile << " to list chunks" << endl;
 				continue;
 			}
 			if (chunks.empty())
 				continue;
-			PosRegionIdx pri(ri);
-			if (pri.valid())
-			{
-				regiontable.setRequired(pri);
-				reqregioncount++;
-			}
-			else
-			{
-				cerr << "ignoring extremely-distant region " << ri.toFileName() << " (world may be corrupt)" << endl;
-				continue;
-			}
+			regiontable.setRequired(pri);
+			reqregioncount++;
 			for (vector<ChunkIdx>::const_iterator chunk = chunks.begin(); chunk != chunks.end(); chunk++)
 			{
 				PosChunkIdx pci(*chunk);
@@ -189,7 +188,7 @@ int readRegionlist(const string& regionlist, const string& inputdir, ChunkTable&
 					else
 					{
 						cerr << "ignoring extremely-distant tile [" << tile->x << "," << tile->y << "]" << endl;
-						cerr << "(world may be corrupt; is region " << ri.toFileName() << " supposed to exist?)" << endl;
+						cerr << "(world may be corrupt; is region " << regionfile << " supposed to exist?)" << endl;
 						continue;
 					}
 					if (!tile->valid(mp))

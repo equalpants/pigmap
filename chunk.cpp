@@ -29,11 +29,7 @@ using namespace std;
 
 
 
-
-
-
-
-bool ChunkData::loadFromFile(const vector<uint8_t>& filebuf)
+bool ChunkData::loadFromOldFile(const vector<uint8_t>& filebuf)
 {
 	// the hell with parsing this whole godforsaken NBT format; just look for the arrays we need
 	uint8_t idsTag[13] = {7, 0, 6, 'B', 'l', 'o', 'c', 'k', 's', 0, 0, 128, 0};
@@ -60,6 +56,18 @@ bool ChunkData::loadFromFile(const vector<uint8_t>& filebuf)
 	}
 	return false;
 }
+
+
+
+
+bool ChunkData::loadFromAnvilFile(const vector<uint8_t>& filebuf)
+{
+	fill(blockIDs, blockIDs + 65536, 0);
+	fill(blockData, blockData + 32768, 0);
+	return false;
+}
+
+
 
 
 
@@ -162,13 +170,14 @@ void ChunkCache::readChunkFile(const PosChunkIdx& ci)
 
 	// gzip read was successful; extract the data we need from the chunk
 	//  and put it in the cache
-	parseReadBuf(ci);
+	parseReadBuf(ci, false);
 }
 
 void ChunkCache::readFromRegionCache(const PosChunkIdx& ci)
 {
 	// try to decompress the chunk data
-	int result = regioncache.getDecompressedChunk(ci, readbuf);
+	bool anvil;
+	int result = regioncache.getDecompressedChunk(ci, readbuf, anvil);
 	if (result == -1)
 	{
 		chunktable.setDiskState(ci, ChunkSet::CHUNK_MISSING);
@@ -182,10 +191,10 @@ void ChunkCache::readFromRegionCache(const PosChunkIdx& ci)
 	
 	// decompression was successful; extract the data we need from the chunk
 	//  and put it in the cache
-	parseReadBuf(ci);
+	parseReadBuf(ci, anvil);
 }
 
-void ChunkCache::parseReadBuf(const PosChunkIdx& ci)
+void ChunkCache::parseReadBuf(const PosChunkIdx& ci, bool anvil)
 {
 	// evict current tenant of chunk's cache slot
 	int e = getEntryNum(ci);
@@ -193,7 +202,8 @@ void ChunkCache::parseReadBuf(const PosChunkIdx& ci)
 		chunktable.setDiskState(entries[e].ci, ChunkSet::CHUNK_UNKNOWN);
 	entries[e].ci = PosChunkIdx(-1,-1);
 	// ...and put this chunk's data into the slot, assuming the data can actually be parsed
-	if (entries[e].data.loadFromFile(readbuf))
+	bool result = anvil ? entries[e].data.loadFromAnvilFile(readbuf) : entries[e].data.loadFromOldFile(readbuf);
+	if (result)
 	{
 		entries[e].ci = ci;
 		chunktable.setDiskState(ci, ChunkSet::CHUNK_CACHED);
