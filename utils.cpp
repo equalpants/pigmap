@@ -217,6 +217,12 @@ uint32_t fromBigEndian(uint32_t i)
 	return (*b << 24) | (*(b+1) << 16) | (*(b+2) << 8) | (*(b+3));
 }
 
+uint16_t fromBigEndian(uint16_t i)
+{
+	uint8_t *b = (uint8_t*)(&i);
+	return (*b << 8) | (*(b+1));
+}
+
 bool isBigEndian()
 {
 	uint32_t i = 0xff000000;

@@ -430,9 +430,6 @@ bool performRender(const string& inputpath, const string& outputpath, const stri
 		cout << "region-format world detected" << endl;
 	else
 		cout << "no regions detected; assuming chunk-format world" << endl;
-	// for now we're still only going up to 127
-	rj.mp.minY = std::min(rj.mp.minY, 127);
-	rj.mp.maxY = std::min(rj.mp.maxY, 127);
 
 	// test world
 	if (testworldsize != -1)

@@ -10,7 +10,8 @@ essentially the same thing, just faster and with fewer fancy options.  Features 
 -incremental map updates, but you must supply your own list of modified chunks (most
   likely via rsync or something similar)
 -multithreading
--support for Alpha (chunk-based) or Beta (region-based) world formats
+-support for Alpha (chunk-based), Beta (.mcr), or Anvil (.mca) world formats
+-ability to restrict rendering to a certain range of Y-values (heights)
 
 pigmap is free under the GPL (please see the file COPYING).  I probably won't add too many
 more features beyond whatever the Aporkalypse might need in the future, but hopefully it will
@@ -37,7 +38,9 @@ Use supplied makefile to build with g++.
 Change log (important stuff only):
 
 1.1
+-Anvil format support
 -added -y and -Y params to specify minimum/maximum Y-coords for rendering
+-memory requirements are about 15-20% lower due to better caching
 
 1.0.1
 -new blocks: jungle logs/leaves/saplings
@@ -128,8 +131,9 @@ images will be written to the output path, along with a file "pigmap.params" whi
 parameters the map was drawn with.  For incremental updates, the output path must exist already, and
 must contain the pigmap.params file.
 
-Both the newer region-based world format and the older chunk-based world format are supported.  (If
-the input path somehow contains *both* formats, only the region data will be used.)
+Three world formats are supported: the current Anvil format (with .mca region files), the .mcr
+region format that preceded it, and the even older chunk-based format.  If the input path contains
+more than one format, then only the newer format will be used.
 
 b. [optional (kind of)] HTML source path (-m)
 
@@ -171,7 +175,7 @@ The textures in terrain.png (and fire.png) can be any size, as long as they rema
 
 d. [optional] number of threads (-h)
 
-Defaults to 1.  Each thread requires around 250-300 MB of RAM (they work in different areas of the
+Defaults to 1.  Each thread requires around 200-300 MB of RAM (they work in different areas of the
 map and keep separate caches of chunk data).  Returns from extra threads may diminish quickly as the
 disk becomes a bottleneck.
 
@@ -218,10 +222,16 @@ The name of a text file containing the filenames of regions or chunks that shoul
 line.  Supplied filenames can have a relative or absolute path or can just be the file name; only the
 name will be examined.
 
-The choice of regionlist/chunklist must match the current format of the input world (if the world
-is in region format, a regionlist must be supplied).  The current format does *not* have to match the
-world format used in the previous map render, however; a normal incremental update will work fine
-even if you've converted the world from chunk to region format since the last render.
+If the input world is in region format (either .mca or .mcr regions), then a regionlist must be used,
+not a chunklist.  However, the extensions on the filenames in a regionlist do not matter--only the
+coordinates from the filenames will be considered, and pigmap will always read the newest available
+region.
+
+The current format of the input world does *not* have to match the format used in the previous map
+render--an incremental update will work fine even if the world data has been converted since the
+last render.  (Of course it would be trickier to get a meaningful regionlist in such a case--to
+distinguish the regions which have actually changed from those which have merely been converted--
+but if you have such a list, then pigmap can use it.)
 
 b. [optional] expand map if necessary (-x)
 

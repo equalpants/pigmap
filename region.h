@@ -69,6 +69,7 @@ struct RegionFileReader
 	{
 		offsets.swap(rfr.offsets);
 		chunkdata.swap(rfr.chunkdata);
+		std::swap(anvil, rfr.anvil);
 	}
 
 	// extract values from the offsets
@@ -134,7 +135,6 @@ struct RegionCacheEntry
 {
 	PosRegionIdx ri;  // or [-1, -1] if this entry is empty
 	RegionFileReader regionfile;
-	bool anvil;  // whether the region data is Anvil or old-style
 	
 	RegionCacheEntry() : ri(-1,-1) {}
 };

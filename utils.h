@@ -55,6 +55,7 @@ uint64_t getHeapUsage();
 
 // convert a big-endian int into whatever the current platform endianness is
 uint32_t fromBigEndian(uint32_t i);
+uint16_t fromBigEndian(uint16_t i);
 
 // detect whether the platform is big-endian
 bool isBigEndian();
@@ -119,6 +120,14 @@ template <class T> struct arrayDeleter
 	T *array;
 	arrayDeleter(T *a) : array(a) {}
 	~arrayDeleter() {delete[] array;}
+};
+
+
+template <class T> struct stackPusher
+{
+	std::vector<T>& vec;
+	stackPusher(std::vector<T>& v, const T& item) : vec(v) {vec.push_back(item);}
+	~stackPusher() {vec.pop_back();}
 };
 
 

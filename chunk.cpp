@@ -28,9 +28,12 @@ using namespace std;
 
 
 
+//---------------------------------------------------------------------------------------------------
+
 
 bool ChunkData::loadFromOldFile(const vector<uint8_t>& filebuf)
 {
+	anvil = false;
 	// the hell with parsing this whole godforsaken NBT format; just look for the arrays we need
 	uint8_t idsTag[13] = {7, 0, 6, 'B', 'l', 'o', 'c', 'k', 's', 0, 0, 128, 0};
 	uint8_t dataTag[11] = {7, 0, 4, 'D', 'a', 't', 'a', 0, 0, 64, 0};
@@ -58,17 +61,209 @@ bool ChunkData::loadFromOldFile(const vector<uint8_t>& filebuf)
 }
 
 
+//---------------------------------------------------------------------------------------------------
 
+
+// quasi-NBT-parsing stuff for Anvil format: doesn't actually bother trying to read the whole thing,
+//  just skips through the data looking for what we're interested in
+#define TAG_END            0
+#define TAG_BYTE           1
+#define TAG_SHORT          2
+#define TAG_INT            3
+#define TAG_LONG           4
+#define TAG_FLOAT          5
+#define TAG_DOUBLE         6
+#define TAG_BYTE_ARRAY     7
+#define TAG_STRING         8
+#define TAG_LIST           9
+#define TAG_COMPOUND       10
+#define TAG_INT_ARRAY      11
+
+// although tag names are UTF8, we'll just pretend they're ASCII--we don't really care about how the
+//  actual string data breaks down into characters, as long as we know where the end of the string is
+void parseTypeAndName(const uint8_t*& ptr, uint8_t& type, string& name)
+{
+	type = *ptr;
+	ptr++;
+	if (type != TAG_END)
+	{
+		uint16_t len = fromBigEndian(*((uint16_t*)ptr));
+		name.resize(len);
+		copy(ptr + 2, ptr + 2 + len, name.begin());
+		ptr += 2 + len;
+	}
+}
+
+// structure for locating the block data for a 16x16x16 section--the compound tags on the "Sections" list will pass
+//  this down to their immediate children, so they can fill in pointers to their payloads if appropriate
+// ...after the whole structure is parsed, the block data will be copied into the ChunkData
+// (note that we can't read the block data immediately upon finding it, because we have to know the Y value
+//  for the section first, and the tags may appear in any order)
+struct chunkSection
+{
+	int y;  // or -1 for "not found yet"
+	const uint8_t *blockIDs;  // pointer into the file buffer, or NULL for "not found yet"
+	const uint8_t *blockData;  // pointer into the file buffer, or NULL for "not found yet"
+
+	chunkSection() : y(-1), blockIDs(NULL), blockData(NULL) {}
+	bool complete() const {return y >= 0 && y < 16 && blockIDs != NULL && blockData != NULL;}
+	
+	void extract(ChunkData& chunkdata) const
+	{
+		copy(blockIDs, blockIDs + 4096, chunkdata.blockIDs + (y * 4096));
+		copy(blockData, blockData + 2048, chunkdata.blockData + (y * 2048));
+	}
+};
+
+bool isSection(const vector<string>& names)
+{
+	return names.size() == 4 &&
+	       names[3] == "" &&
+	       names[2] == "Sections" &&
+	       names[1] == "Level" &&
+	       names[0] == "";
+}
+
+// if section != NULL, then the immediate parent of this tag is one of the compound tags in the "Sections"
+//  list, so the block data tags will fill in their locations
+bool parsePayload(const uint8_t*& ptr, uint8_t type, vector<string>& names, chunkSection *section, vector<chunkSection>& completedSections)
+{
+	switch (type)
+	{
+		case TAG_END:
+		{
+			return true;
+		}
+		case TAG_BYTE:
+		{
+			if (section != NULL && names.back() == "Y")
+				section->y = *ptr;
+			ptr++;
+			return true;
+		}
+		case TAG_SHORT:
+		{
+			ptr += 2;
+			return true;
+		}
+		case TAG_INT:
+		case TAG_FLOAT:
+		{
+			ptr += 4;
+			return true;
+		}
+		case TAG_LONG:
+		case TAG_DOUBLE:
+		{
+			ptr += 8;
+			return true;
+		}
+		case TAG_BYTE_ARRAY:
+		{
+			uint32_t len = fromBigEndian(*((uint32_t*)ptr));
+			ptr += 4;
+			if (section != NULL)
+			{
+				if (names.back() == "Blocks" && len == 4096)
+					section->blockIDs = ptr;
+				else if (names.back() == "Data" && len == 2048)
+					section->blockData = ptr;
+			}
+			ptr += len;
+			return true;
+		}
+		case TAG_INT_ARRAY:
+		{
+			uint32_t len = fromBigEndian(*((uint32_t*)ptr));
+			ptr += 4 + len*4;
+			return true;
+		}
+		case TAG_STRING:
+		{
+			uint16_t len = fromBigEndian(*((uint16_t*)ptr));
+			ptr += 2 + len;
+			return true;
+		}
+		case TAG_LIST:
+		{
+			uint8_t listtype = *ptr;
+			ptr++;
+			uint32_t len = fromBigEndian(*((uint32_t*)ptr));
+			ptr += 4;
+			stackPusher<string> sp(names, "");
+			for (uint32_t i = 0; i < len; i++)
+				if (!parsePayload(ptr, listtype, names, NULL, completedSections))
+					return false;
+			return true;
+		}
+		case TAG_COMPOUND:
+		{
+			chunkSection section;
+			chunkSection *sectionPtr = isSection(names) ? &section : NULL;
+			
+			uint8_t nexttype;
+			string nextname;
+			parseTypeAndName(ptr, nexttype, nextname);
+			while (nexttype != TAG_END)
+			{
+				stackPusher<string> sp(names, nextname);
+				if (!parsePayload(ptr, nexttype, names, sectionPtr, completedSections))
+					return false;
+				parseTypeAndName(ptr, nexttype, nextname);
+			}
+			
+			if (sectionPtr != NULL)
+			{
+				if (section.complete())
+					completedSections.push_back(section);
+				else
+				{
+					cerr << "incomplete chunk section!" << endl;
+					return false;
+				}
+			}
+
+			return true;
+		}
+		default:
+		{
+			// unknown tag--since we have no idea how large it is, we must abort
+			cerr << "unknown NBT tag: type " << type << endl;
+			return false;
+		}
+	}
+	return false;  // shouldn't be able to reach here
+}
 
 bool ChunkData::loadFromAnvilFile(const vector<uint8_t>& filebuf)
 {
+	anvil = true;
 	fill(blockIDs, blockIDs + 65536, 0);
 	fill(blockData, blockData + 32768, 0);
-	return false;
+
+	const uint8_t *ptr = &(filebuf[0]);
+	uint8_t type;
+	string name;
+	parseTypeAndName(ptr, type, name);
+	if (type != TAG_COMPOUND || !name.empty())
+	{
+		cerr << "unrecognized NBT chunk file: top tag has type " << (int)type << " and name " << name << endl;
+		return false;
+	}
+
+	vector<string> names(1, name);
+	vector<chunkSection> completedSections;
+	if (!parsePayload(ptr, type, names, NULL, completedSections))
+		return false;
+
+	for (vector<chunkSection>::const_iterator it = completedSections.begin(); it != completedSections.end(); it++)
+		it->extract(*this);
+
+	return true;
 }
 
 
-
+//---------------------------------------------------------------------------------------------------
 
 
 ChunkCacheStats& ChunkCacheStats::operator+=(const ChunkCacheStats& ccs)
@@ -82,9 +277,6 @@ ChunkCacheStats& ChunkCacheStats::operator+=(const ChunkCacheStats& ccs)
 	corrupt += ccs.corrupt;
 	return *this;
 }
-
-
-
 
 ChunkData* ChunkCache::getData(const PosChunkIdx& ci)
 {

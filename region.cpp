@@ -187,12 +187,12 @@ int RegionCache::getDecompressedChunk(const PosChunkIdx& ci, vector<uint8_t>& bu
 		// try the "real" cache entry, then the extra readbuf
 		if (entries[e].ri == ri)
 		{
-			anvil = entries[e].anvil;
+			anvil = entries[e].regionfile.anvil;
 			return entries[e].regionfile.decompressChunk(ci.toChunkIdx(), buf);
 		}
 		else if (readbuf.ri == ri)
 		{
-			anvil = readbuf.anvil;
+			anvil = readbuf.regionfile.anvil;
 			return readbuf.regionfile.decompressChunk(ci.toChunkIdx(), buf);
 		}
 		// if it wasn't in one of those two places, it shouldn't have been marked as cached
@@ -238,7 +238,7 @@ int RegionCache::getDecompressedChunk(const PosChunkIdx& ci, vector<uint8_t>& bu
 		exit(-1);
 	}
 	stats.read++;
-	anvil = entries[e].anvil;
+	anvil = entries[e].regionfile.anvil;
 	return entries[e].regionfile.decompressChunk(ci.toChunkIdx(), buf);
 }
 
@@ -270,7 +270,6 @@ void RegionCache::readRegionFile(const PosRegionIdx& ri)
 	int e = getEntryNum(ri);
 	entries[e].regionfile.swap(readbuf.regionfile);
 	swap(entries[e].ri, readbuf.ri);
-	swap(entries[e].anvil, readbuf.anvil);
 	// mark the entry as vaild and the region as cached
 	entries[e].ri = ri;
 	regiontable.setDiskState(ri, RegionSet::REGION_CACHED);
