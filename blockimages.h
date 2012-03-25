@@ -120,7 +120,7 @@ struct BlockImages
 	bool construct(int B, const std::string& terrainfile, const std::string& firefile, const std::string& endportalfile);
 };
 
-#define NUMBLOCKIMAGES 430
+#define NUMBLOCKIMAGES 458
 
 // block image offsets:
 //
@@ -223,38 +223,38 @@ struct BlockImages
 // 286 bed foot N              318 nether fence S          350 brewing stand           382 vines NS
 // 287 bed foot E              319 nether fence NS         351 cauldron empty          383 vines E
 //
-// 384 vines NE                416 closed sticky piston S
-// 385 vines SE                417 closed sticky piston W
-// 386 vines NSE               418 closed sticky piston E
-// 387 vines W                 419 iron bars N
-// 388 vines NW                420 iron bars S
-// 389 vines SW                421 iron bars E
-// 390 vines NSW               422 iron bars W
-// 391 vines EW                423 glass pane N
-// 392 vines NEW               424 glass pane S
-// 393 vines SEW               425 glass pane E
+// 384 vines NE                416 closed sticky piston S  448 brick stairs inv W
+// 385 vines SE                417 closed sticky piston W  449 brick stairs inv E
+// 386 vines NSE               418 closed sticky piston E  450 stone brick stairs inv S
+// 387 vines W                 419 iron bars N             451 stone brick stairs inv N
+// 388 vines NW                420 iron bars S             452 stone brick stairs inv W
+// 389 vines SW                421 iron bars E             453 stone brick stairs inv E
+// 390 vines NSW               422 iron bars W             454 nether stairs inv S
+// 391 vines EW                423 glass pane N            455 nether stairs inv N
+// 392 vines NEW               424 glass pane S            456 nether stairs inv W
+// 393 vines SEW               425 glass pane E            457 nether stairs inv E
 // 394 vines NSEW              426 glass pane W
 // 395 stem level 0            427 jungle log
 // 396 stem level 1            428 jungle leaves
 // 397 stem level 2            429 jungle sapling
-// 398 stem level 3
-// 399 stem level 4
-// 400 stem level 5
-// 401 stem level 6
-// 402 stem level 7
-// 403 stem pointing N
-// 404 stem pointing S
-// 405 stem pointing E
-// 406 stem pointing W
-// 407 closed piston D
-// 408 closed piston U
-// 409 closed piston N
-// 410 closed piston S
-// 411 closed piston W
-// 412 closed piston E
-// 413 closed sticky piston D
-// 414 closed sticky piston U
-// 415 closed sticky piston N
+// 398 stem level 3            430 circle stone brick
+// 399 stem level 4            431 hieroglyphic sandstone
+// 400 stem level 5            432 smooth sandstone
+// 401 stem level 6            433 redstone lamp on
+// 402 stem level 7            434 redstone lamp off
+// 403 stem pointing N         435 pine planks
+// 404 stem pointing S         436 birch planks
+// 405 stem pointing E         437 jungle planks
+// 406 stem pointing W         438 wood stairs inv S
+// 407 closed piston D         439 wood stairs inv N
+// 408 closed piston U         440 wood stairs inv W
+// 409 closed piston N         441 wood stairs inv E
+// 410 closed piston S         442 cobble stairs inv S
+// 411 closed piston W         443 cobble stairs inv N
+// 412 closed piston E         444 cobble stairs inv W
+// 413 closed sticky piston D  445 cobble stairs inv E
+// 414 closed sticky piston U  446 brick stairs inv S
+// 415 closed sticky piston N  447 brick stairs inv N
 
 
 

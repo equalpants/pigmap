@@ -774,6 +774,52 @@ void drawStairsS(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 	}
 }
 
+// draw S-ascending stairs inverted
+void drawInvStairsS(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B)
+{
+	int tilesize = 2*B;
+	// draw the bottom half of a N face at [B,B/2]; do this first because the others will partially cover it
+	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	     dstit(drect.x + B, drect.y + B/2, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	{
+		// ...but if B is odd, we need to add an extra [0,1] to the even-numbered columns
+		int adjust = 0;
+		if (B % 2 == 1 && (dstit.pos / tilesize) % 2 == 0)
+			adjust = 1;
+		if (dstit.pos % tilesize >= B)
+		{
+			dest(dstit.x, dstit.y + adjust) = tiles(srcit.x, srcit.y);
+			darken(dest(dstit.x, dstit.y + adjust), 0.9, 0.9, 0.9);
+		}
+	}
+	// normal N face starts at [0,B]; draw the top half of it
+	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	     dstit(drect.x, drect.y + B, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	{
+		if (dstit.pos % tilesize < B)
+		{
+			dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+			darken(dest(dstit.x, dstit.y), 0.9, 0.9, 0.9);
+		}
+	}
+	// normal W face starts at [2B,2B]; draw all but the lower-left quarter of it
+	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	     dstit(drect.x + 2*B, drect.y + 2*B, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	{
+		if (dstit.pos % tilesize < B || dstit.pos / tilesize >= B)
+		{
+			dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+			darken(dest(dstit.x, dstit.y), 0.8, 0.8, 0.8);
+		}
+	}
+	// normal U face starts at [2B-1,0]; draw the whole thing
+	TopFaceIterator tdstit(drect.x + 2*B-1, drect.y, tilesize);
+	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
+	{
+		dest(tdstit.x, tdstit.y) = tiles(srcit.x, srcit.y);
+	}
+}
+
 // draw N-ascending stairs
 void drawStairsN(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B)
 {
@@ -817,6 +863,35 @@ void drawStairsN(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 	     dstit(drect.x + 2*B, drect.y + 2*B, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		if (dstit.pos % tilesize >= B || dstit.pos / tilesize < B)
+		{
+			dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+			darken(dest(dstit.x, dstit.y), 0.8, 0.8, 0.8);
+		}
+	}
+}
+
+// draw N-ascending stairs inverted
+void drawInvStairsN(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B)
+{
+	int tilesize = 2*B;
+	// normal U face starts at [2B-1,0]; draw the whole thing
+	TopFaceIterator tdstit(drect.x + 2*B-1, drect.y, tilesize);
+	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
+	{
+		dest(tdstit.x, tdstit.y) = tiles(srcit.x, srcit.y);
+	}
+	// normal N face starts at [0,B]; draw it all
+	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	     dstit(drect.x, drect.y + B, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	{
+		dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+		darken(dest(dstit.x, dstit.y), 0.9, 0.9, 0.9);
+	}
+	// normal W face starts at [2B,2B]; draw all but the lower-right quarter of it
+	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	     dstit(drect.x + 2*B, drect.y + 2*B, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	{
+		if (dstit.pos % tilesize < B || dstit.pos / tilesize < B)
 		{
 			dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
 			darken(dest(dstit.x, dstit.y), 0.8, 0.8, 0.8);
@@ -899,6 +974,52 @@ void drawStairsE(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 	}
 }
 
+// draw E-ascending stairs inverted
+void drawInvStairsE(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B)
+{
+	int tilesize = 2*B;
+	// draw the bottom half of a W face at [B,1.5B]; do this first because the others will partially cover it
+	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	     dstit(drect.x + B, drect.y + 3*B/2, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	{
+		// ...but if B is odd, we need to add an extra [0,1] to the odd-numbered columns
+		int adjust = 0;
+		if (B % 2 == 1 && (dstit.pos / tilesize) % 2 == 1)
+			adjust = 1;
+		if (dstit.pos % tilesize >= B)
+		{
+			dest(dstit.x, dstit.y + adjust) = tiles(srcit.x, srcit.y);
+			darken(dest(dstit.x, dstit.y + adjust), 0.8, 0.8, 0.8);
+		}
+	}
+	// normal W face starts at [2B,2B]; draw the top half of it
+	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	     dstit(drect.x + 2*B, drect.y + 2*B, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	{
+		if (dstit.pos % tilesize < B)
+		{
+			dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+			darken(dest(dstit.x, dstit.y), 0.8, 0.8, 0.8);
+		}
+	}
+	// normal N face starts at [0,B]; draw all but the lower-right quarter of it
+	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	     dstit(drect.x, drect.y + B, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	{
+		if (dstit.pos % tilesize < B || dstit.pos / tilesize < B)
+		{
+			dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+			darken(dest(dstit.x, dstit.y), 0.9, 0.9, 0.9);
+		}
+	}
+	// normal U face starts at [2B-1,0]; draw the whole thing
+	TopFaceIterator tdstit(drect.x + 2*B-1, drect.y, tilesize);
+	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
+	{
+		dest(tdstit.x, tdstit.y) = tiles(srcit.x, srcit.y);
+	}
+}
+
 // draw W-ascending stairs
 void drawStairsW(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B)
 {
@@ -954,6 +1075,35 @@ void drawStairsW(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 	{
 		dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
 		darken(dest(dstit.x, dstit.y), 0.8, 0.8, 0.8);
+	}
+}
+
+// draw W-ascending stairs inverted
+void drawInvStairsW(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B)
+{
+	int tilesize = 2*B;
+	// normal U face starts at [2B-1,0]; draw the whole thing
+	TopFaceIterator tdstit(drect.x + 2*B-1, drect.y, tilesize);
+	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
+	{
+		dest(tdstit.x, tdstit.y) = tiles(srcit.x, srcit.y);
+	}
+	// normal W face starts at [2B,2B]; draw the whole thing
+	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	     dstit(drect.x + 2*B, drect.y + 2*B, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	{
+		dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+		darken(dest(dstit.x, dstit.y), 0.8, 0.8, 0.8);
+	}
+	// normal N face starts at [0,B]; draw all but the lower-left quarter of it
+	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	     dstit(drect.x, drect.y + B, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	{
+		if (dstit.pos % tilesize < B || dstit.pos / tilesize >= B)
+		{
+			dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+			darken(dest(dstit.x, dstit.y), 0.9, 0.9, 0.9);
+		}
 	}
 }
 
@@ -1181,6 +1331,9 @@ void BlockImages::setOffsets()
 	setOffsetsForID(3, 3, *this);
 	setOffsetsForID(4, 4, *this);
 	setOffsetsForID(5, 5, *this);
+	blockOffsets[offsetIdx(5, 1)] = 435;
+	blockOffsets[offsetIdx(5, 2)] = 436;
+	blockOffsets[offsetIdx(5, 3)] = 437;
 	setOffsetsForID(6, 6, *this);
 	blockOffsets[offsetIdx(6, 1)] = 250;
 	blockOffsets[offsetIdx(6, 5)] = 250;
@@ -1250,6 +1403,8 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(23, 4)] = 224;
 	blockOffsets[offsetIdx(23, 5)] = 225;
 	setOffsetsForID(24, 226, *this);
+	blockOffsets[offsetIdx(24, 1)] = 431;
+	blockOffsets[offsetIdx(24, 2)] = 432;
 	setOffsetsForID(25, 227, *this);
 	setOffsetsForID(26, 285, *this);
 	blockOffsets[offsetIdx(26, 1)] = 286;
@@ -1361,6 +1516,10 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(53, 1)] = 51;
 	blockOffsets[offsetIdx(53, 2)] = 52;
 	blockOffsets[offsetIdx(53, 3)] = 53;
+	blockOffsets[offsetIdx(53, 4)] = 438;
+	blockOffsets[offsetIdx(53, 5)] = 439;
+	blockOffsets[offsetIdx(53, 6)] = 440;
+	blockOffsets[offsetIdx(53, 7)] = 441;
 	setOffsetsForID(54, 54, *this);
 	blockOffsets[offsetIdx(54, 4)] = 177;
 	blockOffsets[offsetIdx(54, 2)] = 297;
@@ -1399,22 +1558,7 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(63, 13)] = 70;
 	blockOffsets[offsetIdx(63, 14)] = 71;
 	blockOffsets[offsetIdx(63, 15)] = 71;
-	blockOffsets[offsetIdx(64, 1)] = 74;
-	blockOffsets[offsetIdx(64, 5)] = 74;
-	blockOffsets[offsetIdx(64, 3)] = 75;
-	blockOffsets[offsetIdx(64, 7)] = 75;
-	blockOffsets[offsetIdx(64, 2)] = 76;
-	blockOffsets[offsetIdx(64, 6)] = 76;
-	blockOffsets[offsetIdx(64, 0)] = 77;
-	blockOffsets[offsetIdx(64, 4)] = 77;
-	blockOffsets[offsetIdx(64, 9)] = 78;
-	blockOffsets[offsetIdx(64, 13)] = 78;
-	blockOffsets[offsetIdx(64, 11)] = 79;
-	blockOffsets[offsetIdx(64, 15)] = 79;
-	blockOffsets[offsetIdx(64, 10)] = 80;
-	blockOffsets[offsetIdx(64, 14)] = 80;
-	blockOffsets[offsetIdx(64, 8)] = 81;
-	blockOffsets[offsetIdx(64, 12)] = 81;
+	setOffsetsForID(64, 74, *this);
 	setOffsetsForID(65, 82, *this);
 	blockOffsets[offsetIdx(65, 3)] = 83;
 	blockOffsets[offsetIdx(65, 4)] = 84;
@@ -1433,6 +1577,10 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(67, 1)] = 97;
 	blockOffsets[offsetIdx(67, 2)] = 98;
 	blockOffsets[offsetIdx(67, 3)] = 99;
+	blockOffsets[offsetIdx(67, 4)] = 442;
+	blockOffsets[offsetIdx(67, 5)] = 443;
+	blockOffsets[offsetIdx(67, 6)] = 444;
+	blockOffsets[offsetIdx(67, 7)] = 445;
 	setOffsetsForID(68, 100, *this);
 	blockOffsets[offsetIdx(68, 3)] = 101;
 	blockOffsets[offsetIdx(68, 4)] = 102;
@@ -1449,22 +1597,7 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(69, 13)] = 198;
 	blockOffsets[offsetIdx(69, 14)] = 199;
 	setOffsetsForID(70, 110, *this);
-	blockOffsets[offsetIdx(71, 1)] = 111;
-	blockOffsets[offsetIdx(71, 5)] = 111;
-	blockOffsets[offsetIdx(71, 3)] = 112;
-	blockOffsets[offsetIdx(71, 7)] = 112;
-	blockOffsets[offsetIdx(71, 2)] = 113;
-	blockOffsets[offsetIdx(71, 6)] = 113;
-	blockOffsets[offsetIdx(71, 0)] = 114;
-	blockOffsets[offsetIdx(71, 4)] = 114;
-	blockOffsets[offsetIdx(71, 9)] = 115;
-	blockOffsets[offsetIdx(71, 13)] = 115;
-	blockOffsets[offsetIdx(71, 11)] = 116;
-	blockOffsets[offsetIdx(71, 15)] = 116;
-	blockOffsets[offsetIdx(71, 10)] = 117;
-	blockOffsets[offsetIdx(71, 14)] = 117;
-	blockOffsets[offsetIdx(71, 8)] = 118;
-	blockOffsets[offsetIdx(71, 12)] = 118;
+	setOffsetsForID(71, 111, *this);
 	setOffsetsForID(72, 119, *this);
 	setOffsetsForID(73, 120, *this);
 	setOffsetsForID(74, 120, *this);
@@ -1544,6 +1677,7 @@ void BlockImages::setOffsets()
 	setOffsetsForID(98, 294, *this);
 	blockOffsets[offsetIdx(98, 1)] = 295;
 	blockOffsets[offsetIdx(98, 2)] = 296;
+	blockOffsets[offsetIdx(98, 3)] = 430;
 	setOffsetsForID(99, 336, *this);
 	blockOffsets[offsetIdx(99, 1)] = 342;
 	blockOffsets[offsetIdx(99, 2)] = 341;
@@ -1610,10 +1744,18 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(108, 1)] = 305;
 	blockOffsets[offsetIdx(108, 2)] = 306;
 	blockOffsets[offsetIdx(108, 3)] = 307;
+	blockOffsets[offsetIdx(108, 4)] = 446;
+	blockOffsets[offsetIdx(108, 5)] = 447;
+	blockOffsets[offsetIdx(108, 6)] = 448;
+	blockOffsets[offsetIdx(108, 7)] = 449;
 	setOffsetsForID(109, 308, *this);
 	blockOffsets[offsetIdx(109, 1)] = 309;
 	blockOffsets[offsetIdx(109, 2)] = 310;
 	blockOffsets[offsetIdx(109, 3)] = 311;
+	blockOffsets[offsetIdx(109, 4)] = 450;
+	blockOffsets[offsetIdx(109, 5)] = 451;
+	blockOffsets[offsetIdx(109, 6)] = 452;
+	blockOffsets[offsetIdx(109, 7)] = 453;
 	setOffsetsForID(110, 291, *this);
 	setOffsetsForID(111, 316, *this);
 	setOffsetsForID(112, 292, *this);
@@ -1622,6 +1764,10 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(114, 1)] = 313;
 	blockOffsets[offsetIdx(114, 2)] = 314;
 	blockOffsets[offsetIdx(114, 3)] = 315;
+	blockOffsets[offsetIdx(114, 4)] = 454;
+	blockOffsets[offsetIdx(114, 5)] = 455;
+	blockOffsets[offsetIdx(114, 6)] = 456;
+	blockOffsets[offsetIdx(114, 7)] = 457;
 	setOffsetsForID(115, 333, *this);
 	blockOffsets[offsetIdx(115, 1)] = 334;
 	blockOffsets[offsetIdx(115, 2)] = 334;
@@ -1636,6 +1782,8 @@ void BlockImages::setOffsets()
 	setOffsetsForID(120, 349, *this);
 	setOffsetsForID(121, 293, *this);
 	setOffsetsForID(122, 378, *this);
+	setOffsetsForID(123, 434, *this);
+	setOffsetsForID(124, 433, *this);
 }
 
 void BlockImages::checkOpacityAndTransparency(int B)
@@ -1853,6 +2001,9 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawBlockImage(img, getRect(3), tiles, 2, 2, 2, B);  // dirt
 	drawBlockImage(img, getRect(4), tiles, 16, 16, 16, B);  // cobblestone
 	drawBlockImage(img, getRect(5), tiles, 4, 4, 4, B);  // planks
+	drawBlockImage(img, getRect(435), tiles, 198, 198, 198, B);  // pine planks
+	drawBlockImage(img, getRect(436), tiles, 214, 214, 214, B);  // birch planks
+	drawBlockImage(img, getRect(437), tiles, 199, 199, 199, B);  // jungle planks
 	drawBlockImage(img, getRect(7), tiles, 17, 17, 17, B);  // bedrock
 	drawBlockImage(img, getRect(8), tiles, 205, 205, 205, B);  // full water
 	drawBlockImage(img, getRect(157), tiles, -1, -1, 205, B);  // water surface
@@ -1941,6 +2092,8 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawBlockImage(img, getRect(224), tiles, 46, 45, 62, B);  // dispenser N
 	drawBlockImage(img, getRect(225), tiles, 45, 45, 62, B);  // dispenser E/S
 	drawBlockImage(img, getRect(226), tiles, 192, 192, 176, B);  // sandstone
+	drawBlockImage(img, getRect(431), tiles, 229, 229, 176, B);  // hieroglyphic sandstone
+	drawBlockImage(img, getRect(432), tiles, 230, 230, 176, B);  // smooth sandstone
 	drawBlockImage(img, getRect(227), tiles, 74, 74, 74, B);  // note block
 	drawBlockImage(img, getRect(290), tiles, 136, 136, 137, B);  // melon
 	drawBlockImage(img, getRect(291), tiles, 77, 77, 78, B);  // mycelium
@@ -1949,6 +2102,7 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawBlockImage(img, getRect(294), tiles, 54, 54, 54, B);  // stone brick
 	drawBlockImage(img, getRect(295), tiles, 100, 100, 100, B);  // mossy stone brick
 	drawBlockImage(img, getRect(296), tiles, 101, 101, 101, B);  // cracked stone brick
+	drawBlockImage(img, getRect(430), tiles, 213, 213, 213, B);  // circle stone brick
 	drawBlockImage(img, getRect(297), tiles, 26, 26, 25, B);  // chest facing E/S
 	drawBlockImage(img, getRect(298), tiles, 26, 57, 25, B);  // double chest N facing E
 	drawBlockImage(img, getRect(299), tiles, 26, 58, 25, B);  // double chest S facing E
@@ -1964,6 +2118,8 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawBlockImage(img, getRect(343), tiles, 142, 126, 126, B);  // brown cap W
 	drawBlockImage(img, getRect(344), tiles, 126, 126, 126, B);  // brown cap NW
 	drawBlockImage(img, getRect(345), tiles, 141, 141, 142, B);  // mushroom stem
+	drawBlockImage(img, getRect(433), tiles, 212, 212, 212, B);  // redstone lamp on
+	drawBlockImage(img, getRect(434), tiles, 211, 211, 211, B);  // redstone lamp off
 	drawRotatedBlockImage(img, getRect(407), tiles, 108, 108, 109, 2, false, 2, false, 0, false, B);  // closed piston D
 	drawRotatedBlockImage(img, getRect(408), tiles, 108, 108, 107, 0, false, 0, false, 0, false, B);  // closed piston U
 	drawRotatedBlockImage(img, getRect(409), tiles, 107, 108, 108, 0, false, 1, false, 2, false, B);  // closed piston N
@@ -2147,6 +2303,26 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawStairsN(img, getRect(313), tiles, 224, B);  // nether brick stairs asc N
 	drawStairsW(img, getRect(314), tiles, 224, B);  // nether brick stairs asc W
 	drawStairsE(img, getRect(315), tiles, 224, B);  // nether brick stairs asc E
+	drawInvStairsS(img, getRect(438), tiles, 4, B);  // wood stairs asc S inverted
+	drawInvStairsN(img, getRect(439), tiles, 4, B);  // wood stairs asc N inverted
+	drawInvStairsW(img, getRect(440), tiles, 4, B);  // wood stairs asc W inverted
+	drawInvStairsE(img, getRect(441), tiles, 4, B);  // wood stairs asc E inverted
+	drawInvStairsS(img, getRect(442), tiles, 16, B);  // cobble stairs asc S inverted
+	drawInvStairsN(img, getRect(443), tiles, 16, B);  // cobble stairs asc N inverted
+	drawInvStairsW(img, getRect(444), tiles, 16, B);  // cobble stairs asc W inverted
+	drawInvStairsE(img, getRect(445), tiles, 16, B);  // cobble stairs asc E inverted
+	drawInvStairsS(img, getRect(446), tiles, 7, B);  // brick stairs asc S inverted
+	drawInvStairsN(img, getRect(447), tiles, 7, B);  // brick stairs asc N inverted
+	drawInvStairsW(img, getRect(448), tiles, 7, B);  // brick stairs asc W inverted
+	drawInvStairsE(img, getRect(449), tiles, 7, B);  // brick stairs asc E inverted
+	drawInvStairsS(img, getRect(450), tiles, 54, B);  // stone brick stairs asc S inverted
+	drawInvStairsN(img, getRect(451), tiles, 54, B);  // stone brick stairs asc N inverted
+	drawInvStairsW(img, getRect(452), tiles, 54, B);  // stone brick stairs asc W inverted
+	drawInvStairsE(img, getRect(453), tiles, 54, B);  // stone brick stairs asc E inverted
+	drawInvStairsS(img, getRect(454), tiles, 224, B);  // nether brick stairs asc S inverted
+	drawInvStairsN(img, getRect(455), tiles, 224, B);  // nether brick stairs asc N inverted
+	drawInvStairsW(img, getRect(456), tiles, 224, B);  // nether brick stairs asc W inverted
+	drawInvStairsE(img, getRect(457), tiles, 224, B);  // nether brick stairs asc E inverted
 
 	drawFloorBlockImage(img, getRect(55), tiles, 164, 0, B);  // redstone wire NSEW
 	drawFloorBlockImage(img, getRect(86), tiles, 128, 1, B);  // track EW

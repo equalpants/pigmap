@@ -41,6 +41,9 @@ Change log (important stuff only):
 -Anvil format support
 -added -y and -Y params to specify minimum/maximum Y-coords for rendering
 -memory requirements are about 15-20% lower due to better caching
+-new blocks up to Minecraft 1.2.4: circle stone brick, new sandstone types, redstone lamps,
+  new plank colors, upside-down stairs
+-some display fixes for older blocks whose behavior has changed: fences, doors
 
 1.0.1
 -new blocks: jungle logs/leaves/saplings

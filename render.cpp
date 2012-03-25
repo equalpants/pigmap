@@ -197,6 +197,24 @@ void buildDependencies(SceneGraph& sg, int pcol1, int pcol2, int which)
 	} \
 }
 
+#define GETNEIGHBORUD(gnid, gndata, gnoff) \
+{ \
+	BlockIdx bin = bi + gnoff; \
+	if (bin.y >= 0 && bin.y <= 255) \
+	{ \
+		gnid = chunkdata->id(bin); \
+		gndata = chunkdata->data(bin); \
+	} \
+	else \
+	{ \
+		gnid = 0; \
+		gndata = 0; \
+	} \
+}
+
+#define CONNECTFENCE(cfid, cfdata) (rj.blockimages.isOpaque(cfid, cfdata) || cfid == 85 || cfid == 107)
+#define CONNECTNETHERFENCE(cfid, cfdata) (rj.blockimages.isOpaque(cfid, cfdata) || cfid == 113 || cfid == 107)
+
 // given a node that must be drawn, see if we need to do anything special to it--that is, anything that
 //  doesn't depend purely on its blockID/blockData
 // examples: for nodes with no E/S neighbors, we add a little darkness on the EU/SU edge to indicate drop-off;
@@ -242,10 +260,10 @@ void checkSpecial(SceneGraphNode& node, uint8_t blockID, uint8_t blockData, cons
 		GETNEIGHBOR(blockIDS, blockDataS, BlockIdx(1,0,0))
 		GETNEIGHBOR(blockIDE, blockDataE, BlockIdx(0,-1,0))
 		GETNEIGHBOR(blockIDW, blockDataW, BlockIdx(0,1,0))
-		int bits = ((blockIDN == 85 || blockIDN == 107) ? 0x1 : 0) |
-		            ((blockIDS == 85 || blockIDS == 107) ? 0x2 : 0) |
-		            ((blockIDE == 85 || blockIDE == 107) ? 0x4 : 0) |
-		            ((blockIDW == 85 || blockIDW == 107) ? 0x8 : 0);
+		int bits = (CONNECTFENCE(blockIDN, blockDataN) ? 0x1 : 0) |
+		            (CONNECTFENCE(blockIDS, blockDataS) ? 0x2 : 0) |
+		            (CONNECTFENCE(blockIDE, blockDataE) ? 0x4 : 0) |
+		            (CONNECTFENCE(blockIDW, blockDataW) ? 0x8 : 0);
 		if (bits != 0)
 			node.bimgoffset = 157 + bits;
 	}
@@ -256,10 +274,10 @@ void checkSpecial(SceneGraphNode& node, uint8_t blockID, uint8_t blockData, cons
 		GETNEIGHBOR(blockIDS, blockDataS, BlockIdx(1,0,0))
 		GETNEIGHBOR(blockIDE, blockDataE, BlockIdx(0,-1,0))
 		GETNEIGHBOR(blockIDW, blockDataW, BlockIdx(0,1,0))
-		int bits = ((blockIDN == 113 || blockIDN == 107) ? 0x1 : 0) |
-		            ((blockIDS == 113 || blockIDS == 107) ? 0x2 : 0) |
-		            ((blockIDE == 113 || blockIDE == 107) ? 0x4 : 0) |
-		            ((blockIDW == 113 || blockIDW == 107) ? 0x8 : 0);
+		int bits = (CONNECTNETHERFENCE(blockIDN, blockDataN) ? 0x1 : 0) |
+		            (CONNECTNETHERFENCE(blockIDS, blockDataS) ? 0x2 : 0) |
+		            (CONNECTNETHERFENCE(blockIDE, blockDataE) ? 0x4 : 0) |
+		            (CONNECTNETHERFENCE(blockIDW, blockDataW) ? 0x8 : 0);
 		if (bits != 0)
 			node.bimgoffset = 316 + bits;
 	}
@@ -330,6 +348,36 @@ void checkSpecial(SceneGraphNode& node, uint8_t blockID, uint8_t blockData, cons
 			node.bimgoffset = 405;
 		else if (blockIDW == target)
 			node.bimgoffset = 406;
+	}
+	else if (blockID == 64)  // wooden door
+	{
+		uint8_t blockIDU, blockDataU, blockIDD, blockDataD;
+		GETNEIGHBORUD(blockIDU, blockDataU, BlockIdx(0,0,1))
+		GETNEIGHBORUD(blockIDD, blockDataD, BlockIdx(0,0,-1))
+		bool isTop = blockIDD == 64;
+		uint8_t blockDataTop = isTop ? blockData : blockDataU;
+		uint8_t blockDataBottom = isTop ? blockDataD : blockData;
+		int dir = blockDataBottom % 4;
+		if (blockDataBottom & 0x4)
+			dir = (dir + ((blockDataTop & 0x1) ? 3 : 1)) % 4;
+		static const int topImages[4] = {81, 78, 80, 79};
+		static const int bottomImages[4] = {77, 74, 76, 75};
+		node.bimgoffset = isTop ? topImages[dir] : bottomImages[dir];
+	}
+	else if (blockID == 71)  // iron door
+	{
+		uint8_t blockIDU, blockDataU, blockIDD, blockDataD;
+		GETNEIGHBORUD(blockIDU, blockDataU, BlockIdx(0,0,1))
+		GETNEIGHBORUD(blockIDD, blockDataD, BlockIdx(0,0,-1))
+		bool isTop = blockIDD == 71;
+		uint8_t blockDataTop = isTop ? blockData : blockDataU;
+		uint8_t blockDataBottom = isTop ? blockDataD : blockData;
+		int dir = blockDataBottom % 4;
+		if (blockDataBottom & 0x4)
+			dir = (dir + ((blockDataTop & 0x1) ? 3 : 1)) % 4;
+		static const int topImages[4] = {118, 115, 117, 116};
+		static const int bottomImages[4] = {114, 111, 113, 112};
+		node.bimgoffset = isTop ? topImages[dir] : bottomImages[dir];
 	}
 
 	//!!!!!!!! for now, only fully opaque blocks can have drop-off shadows, but some others like snow could
