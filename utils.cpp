@@ -437,7 +437,7 @@ vector<string> tokenize(const string& instr, char separator)
 	vector<string> tokens;
 	istringstream stream(instr);
 	string token;
-	while (!getline(stream, token, separator).eof())
+	while (getline(stream, token, separator))
 		tokens.push_back(token);
 	return tokens;
 }

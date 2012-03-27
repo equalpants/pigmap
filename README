@@ -37,6 +37,9 @@ Use supplied makefile to build with g++.
 
 Change log (important stuff only):
 
+1.1.1
+-fixed a stupid bug preventing incremental updates from working
+
 1.1
 -Anvil format support
 -added -y and -Y params to specify minimum/maximum Y-coords for rendering
