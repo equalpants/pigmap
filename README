@@ -37,6 +37,9 @@ Use supplied makefile to build with g++.
 
 Change log (important stuff only):
 
+1.1.2
+-added inverted slabs
+
 1.1.1
 -fixed a stupid bug preventing incremental updates from working
 

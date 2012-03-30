@@ -403,21 +403,25 @@ void drawRotatedBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAIm
 }
 
 // draw a block image where the block isn't full height (half-steps, snow, etc.)
-// cutoff is the number of pixels (out of 2B) to chop off the N and W faces
-// if shift is true, we take the top portion of the block, but draw it towards the bottom
+// topcutoff is the number of pixels (out of 2B) to chop off the top of the N and W faces
+// bottomcutoff is the number of pixels (out of 2B) to chop off the bottom
+// if shift is true, we start copying pixels from the very top of the source tile, even if there's a topcutoff
 // U face can also be rotated, and N/W faces can be X-flipped (set 0x1 for N, 0x2 for W)
-void drawPartialBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int Nface, int Wface, int Uface, int B, int cutoff, int rot, int flip, bool shift)
+void drawPartialBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int Nface, int Wface, int Uface, int B, int topcutoff, int bottomcutoff, int rot, int flip, bool shift)
 {
 	int tilesize = 2*B;
+	if (topcutoff + bottomcutoff >= tilesize)
+		return;
+	int end = tilesize - bottomcutoff;
 	// N face starts at [0,B]
 	if (Nface != -1)
 	{
 		FaceIterator dstit(drect.x, drect.y + B, 1, tilesize);
 		for (RotatedFaceIterator srcit((Nface%16)*tilesize, (Nface/16)*tilesize, 0, tilesize, flip & 0x1); !srcit.end; srcit.advance(), dstit.advance())
 		{
-			if (dstit.pos % tilesize >= cutoff)
+			if (dstit.pos % tilesize >= topcutoff && dstit.pos % tilesize < end)
 			{
-				dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y - (shift ? cutoff : 0));
+				dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y - (shift ? topcutoff : 0));
 				darken(dest(dstit.x, dstit.y), 0.9, 0.9, 0.9);
 			}
 		}
@@ -428,17 +432,17 @@ void drawPartialBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAIm
 		FaceIterator dstit(drect.x + 2*B, drect.y + 2*B, -1, tilesize);
 		for (RotatedFaceIterator srcit((Wface%16)*tilesize, (Wface/16)*tilesize, 0, tilesize, flip & 0x2); !srcit.end; srcit.advance(), dstit.advance())
 		{
-			if (dstit.pos % tilesize >= cutoff)
+			if (dstit.pos % tilesize >= topcutoff && dstit.pos % tilesize < end)
 			{
-				dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y - (shift ? cutoff : 0));
+				dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y - (shift ? topcutoff : 0));
 				darken(dest(dstit.x, dstit.y), 0.8, 0.8, 0.8);
 			}
 		}
 	}
-	// U face starts at [2B-1,cutoff]
+	// U face starts at [2B-1,topcutoff]
 	if (Uface != -1)
 	{
-		TopFaceIterator dstit(drect.x + 2*B-1, drect.y + cutoff, tilesize);
+		TopFaceIterator dstit(drect.x + 2*B-1, drect.y + topcutoff, tilesize);
 		for (RotatedFaceIterator srcit((Uface%16)*tilesize, (Uface/16)*tilesize, rot, tilesize, false); !srcit.end; srcit.advance(), dstit.advance())
 		{
 			dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
@@ -1244,7 +1248,7 @@ void drawCauldron(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tile
 	
 	// draw the liquid
 	if (liquid != -1)
-		drawPartialBlockImage(dest, drect, tiles, -1, -1, liquid, B, cutoff, 0, 0, true);
+		drawPartialBlockImage(dest, drect, tiles, -1, -1, liquid, B, cutoff, 0, 0, 0, true);
 	
 	// now the N/W sides
 	drawSingleFaceBlockImage(dest, drect, tiles, side, 1, B);
@@ -1500,6 +1504,12 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(44, 3)] = 231;
 	blockOffsets[offsetIdx(44, 4)] = 302;
 	blockOffsets[offsetIdx(44, 5)] = 303;
+	blockOffsets[offsetIdx(44, 8)] = 458;
+	blockOffsets[offsetIdx(44, 9)] = 459;
+	blockOffsets[offsetIdx(44, 10)] = 460;
+	blockOffsets[offsetIdx(44, 11)] = 461;
+	blockOffsets[offsetIdx(44, 12)] = 462;
+	blockOffsets[offsetIdx(44, 13)] = 463;
 	setOffsetsForID(45, 38, *this);
 	setOffsetsForID(46, 39, *this);
 	setOffsetsForID(47, 40, *this);
@@ -2133,37 +2143,43 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawRotatedBlockImage(img, getRect(417), tiles, 108, 106, 108, 3, false, 0, false, 3, false, B);  // closed sticky piston W
 	drawRotatedBlockImage(img, getRect(418), tiles, 108, 109, 108, 1, false, 0, false, 1, false, B);  // closed sticky piston E
 
-	drawPartialBlockImage(img, getRect(9), tiles, 205, 205, 205, B, CUTOFF_2_16, 0, 0, true);  // water level 7
-	drawPartialBlockImage(img, getRect(10), tiles, 205, 205, 205, B, CUTOFF_4_16, 0, 0, true);  // water level 6
-	drawPartialBlockImage(img, getRect(11), tiles, 205, 205, 205, B, CUTOFF_6_16, 0, 0, true);  // water level 5
-	drawPartialBlockImage(img, getRect(12), tiles, 205, 205, 205, B, CUTOFF_8_16, 0, 0, true);  // water level 4
-	drawPartialBlockImage(img, getRect(13), tiles, 205, 205, 205, B, CUTOFF_10_16, 0, 0, true);  // water level 3
-	drawPartialBlockImage(img, getRect(14), tiles, 205, 205, 205, B, CUTOFF_12_16, 0, 0, true);  // water level 2
-	drawPartialBlockImage(img, getRect(15), tiles, 205, 205, 205, B, CUTOFF_14_16, 0, 0, true);  // water level 1
-	drawPartialBlockImage(img, getRect(17), tiles, 237, 237, 237, B, CUTOFF_4_16, 0, 0, true);  // lava level 3
-	drawPartialBlockImage(img, getRect(18), tiles, 237, 237, 237, B, CUTOFF_8_16, 0, 0, true);  // lava level 2
-	drawPartialBlockImage(img, getRect(19), tiles, 237, 237, 237, B, CUTOFF_12_16, 0, 0, true);  // lava level 1
-	drawPartialBlockImage(img, getRect(37), tiles, 5, 5, 6, B, CUTOFF_8_16, 0, 0, true);  // stone slab
-	drawPartialBlockImage(img, getRect(229), tiles, 192, 192, 176, B, CUTOFF_8_16, 0, 0, true);  // sandstone slab
-	drawPartialBlockImage(img, getRect(230), tiles, 4, 4, 4, B, CUTOFF_8_16, 0, 0, true);  // wooden slab
-	drawPartialBlockImage(img, getRect(231), tiles, 16, 16, 16, B, CUTOFF_8_16, 0, 0, true);  // cobble slab
-	drawPartialBlockImage(img, getRect(302), tiles, 7, 7, 7, B, CUTOFF_8_16, 0, 0, true);  // brick slab
-	drawPartialBlockImage(img, getRect(303), tiles, 54, 54, 54, B, CUTOFF_8_16, 0, 0, true);  // stone brick slab
-	drawPartialBlockImage(img, getRect(110), tiles, 1, 1, 1, B, CUTOFF_14_16, 0, 0, true);  // stone pressure plate
-	drawPartialBlockImage(img, getRect(119), tiles, 4, 4, 4, B, CUTOFF_14_16, 0, 0, true);  // wood pressure plate
-	drawPartialBlockImage(img, getRect(127), tiles, 66, 66, 66, B, CUTOFF_12_16, 0, 0, true);  // snow
-	drawPartialBlockImage(img, getRect(289), tiles, 122, 122, 121, B, CUTOFF_8_16, 0, 0, false);  // cake
-	drawPartialBlockImage(img, getRect(281), tiles, 151, 152, 135, B, CUTOFF_8_16, 0, 0, false);  // bed head W
-	drawPartialBlockImage(img, getRect(282), tiles, 152, 151, 135, B, CUTOFF_8_16, 3, 2, false);  // bed head N
-	drawPartialBlockImage(img, getRect(283), tiles, 151, -1, 135, B, CUTOFF_8_16, 2, 1, false);  // bed head E
-	drawPartialBlockImage(img, getRect(284), tiles, -1, 151, 135, B, CUTOFF_8_16, 1, 0, false);  // bed head S
-	drawPartialBlockImage(img, getRect(285), tiles, 150, -1, 134, B, CUTOFF_8_16, 0, 0, false);  // bed foot W
-	drawPartialBlockImage(img, getRect(286), tiles, -1, 150, 134, B, CUTOFF_8_16, 3, 2, false);  // bed foot N
-	drawPartialBlockImage(img, getRect(287), tiles, 150, 149, 134, B, CUTOFF_8_16, 2, 1, false);  // bed foot E
-	drawPartialBlockImage(img, getRect(288), tiles, 149, 150, 134, B, CUTOFF_8_16, 1, 0, false);  // bed foot S
-	drawPartialBlockImage(img, getRect(348), tiles, 182, 182, 166, B, CUTOFF_4_16, 0, 0, false);  // enchantment table
-	drawPartialBlockImage(img, getRect(349), tiles, 159, 159, 158, B, CUTOFF_3_16, 0, 0, false);  // end portal frame
-	drawPartialBlockImage(img, getRect(377), endportaltile, 0, 0, 0, B, CUTOFF_4_16, 0, 0, true);  // end portal
+	drawPartialBlockImage(img, getRect(9), tiles, 205, 205, 205, B, CUTOFF_2_16, 0, 0, 0, true);  // water level 7
+	drawPartialBlockImage(img, getRect(10), tiles, 205, 205, 205, B, CUTOFF_4_16, 0, 0, 0, true);  // water level 6
+	drawPartialBlockImage(img, getRect(11), tiles, 205, 205, 205, B, CUTOFF_6_16, 0, 0, 0, true);  // water level 5
+	drawPartialBlockImage(img, getRect(12), tiles, 205, 205, 205, B, CUTOFF_8_16, 0, 0, 0, true);  // water level 4
+	drawPartialBlockImage(img, getRect(13), tiles, 205, 205, 205, B, CUTOFF_10_16, 0, 0, 0, true);  // water level 3
+	drawPartialBlockImage(img, getRect(14), tiles, 205, 205, 205, B, CUTOFF_12_16, 0, 0, 0, true);  // water level 2
+	drawPartialBlockImage(img, getRect(15), tiles, 205, 205, 205, B, CUTOFF_14_16, 0, 0, 0, true);  // water level 1
+	drawPartialBlockImage(img, getRect(17), tiles, 237, 237, 237, B, CUTOFF_4_16, 0, 0, 0, true);  // lava level 3
+	drawPartialBlockImage(img, getRect(18), tiles, 237, 237, 237, B, CUTOFF_8_16, 0, 0, 0, true);  // lava level 2
+	drawPartialBlockImage(img, getRect(19), tiles, 237, 237, 237, B, CUTOFF_12_16, 0, 0, 0, true);  // lava level 1
+	drawPartialBlockImage(img, getRect(37), tiles, 5, 5, 6, B, CUTOFF_8_16, 0, 0, 0, true);  // stone slab
+	drawPartialBlockImage(img, getRect(229), tiles, 192, 192, 176, B, CUTOFF_8_16, 0, 0, 0, true);  // sandstone slab
+	drawPartialBlockImage(img, getRect(230), tiles, 4, 4, 4, B, CUTOFF_8_16, 0, 0, 0, true);  // wooden slab
+	drawPartialBlockImage(img, getRect(231), tiles, 16, 16, 16, B, CUTOFF_8_16, 0, 0, 0, true);  // cobble slab
+	drawPartialBlockImage(img, getRect(302), tiles, 7, 7, 7, B, CUTOFF_8_16, 0, 0, 0, true);  // brick slab
+	drawPartialBlockImage(img, getRect(303), tiles, 54, 54, 54, B, CUTOFF_8_16, 0, 0, 0, true);  // stone brick slab
+	drawPartialBlockImage(img, getRect(458), tiles, 5, 5, 6, B, 0, CUTOFF_8_16, 0, 0, false);  // stone slab inv
+	drawPartialBlockImage(img, getRect(459), tiles, 192, 192, 176, B, 0, CUTOFF_8_16, 0, 0, false);  // sandstone slab inv
+	drawPartialBlockImage(img, getRect(460), tiles, 4, 4, 4, B, 0, CUTOFF_8_16, 0, 0, false);  // wooden slab inv
+	drawPartialBlockImage(img, getRect(461), tiles, 16, 16, 16, B, 0, CUTOFF_8_16, 0, 0, false);  // cobble slab inv
+	drawPartialBlockImage(img, getRect(462), tiles, 7, 7, 7, B, 0, CUTOFF_8_16, 0, 0, false);  // brick slab inv
+	drawPartialBlockImage(img, getRect(463), tiles, 54, 54, 54, B, 0, CUTOFF_8_16, 0, 0, false);  // stone brick slab inv
+	drawPartialBlockImage(img, getRect(110), tiles, 1, 1, 1, B, CUTOFF_14_16, 0, 0, 0, true);  // stone pressure plate
+	drawPartialBlockImage(img, getRect(119), tiles, 4, 4, 4, B, CUTOFF_14_16, 0, 0, 0, true);  // wood pressure plate
+	drawPartialBlockImage(img, getRect(127), tiles, 66, 66, 66, B, CUTOFF_12_16, 0, 0, 0, true);  // snow
+	drawPartialBlockImage(img, getRect(289), tiles, 122, 122, 121, B, CUTOFF_8_16, 0, 0, 0, false);  // cake
+	drawPartialBlockImage(img, getRect(281), tiles, 151, 152, 135, B, CUTOFF_8_16, 0, 0, 0, false);  // bed head W
+	drawPartialBlockImage(img, getRect(282), tiles, 152, 151, 135, B, CUTOFF_8_16, 0, 3, 2, false);  // bed head N
+	drawPartialBlockImage(img, getRect(283), tiles, 151, -1, 135, B, CUTOFF_8_16, 0, 2, 1, false);  // bed head E
+	drawPartialBlockImage(img, getRect(284), tiles, -1, 151, 135, B, CUTOFF_8_16, 0, 1, 0, false);  // bed head S
+	drawPartialBlockImage(img, getRect(285), tiles, 150, -1, 134, B, CUTOFF_8_16, 0, 0, 0, false);  // bed foot W
+	drawPartialBlockImage(img, getRect(286), tiles, -1, 150, 134, B, CUTOFF_8_16, 0, 3, 2, false);  // bed foot N
+	drawPartialBlockImage(img, getRect(287), tiles, 150, 149, 134, B, CUTOFF_8_16, 0, 2, 1, false);  // bed foot E
+	drawPartialBlockImage(img, getRect(288), tiles, 149, 150, 134, B, CUTOFF_8_16, 0, 1, 0, false);  // bed foot S
+	drawPartialBlockImage(img, getRect(348), tiles, 182, 182, 166, B, CUTOFF_4_16, 0, 0, 0, false);  // enchantment table
+	drawPartialBlockImage(img, getRect(349), tiles, 159, 159, 158, B, CUTOFF_3_16, 0, 0, 0, false);  // end portal frame
+	drawPartialBlockImage(img, getRect(377), endportaltile, 0, 0, 0, B, CUTOFF_4_16, 0, 0, 0, true);  // end portal
 
 	drawItemBlockImage(img, getRect(6), tiles, 15, B);  // sapling
 	drawItemBlockImage(img, getRect(30), tiles, 13, B);  // yellow flower

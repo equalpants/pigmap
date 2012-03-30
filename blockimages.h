@@ -120,7 +120,7 @@ struct BlockImages
 	bool construct(int B, const std::string& terrainfile, const std::string& firefile, const std::string& endportalfile);
 };
 
-#define NUMBLOCKIMAGES 458
+#define NUMBLOCKIMAGES 464
 
 // block image offsets:
 //
@@ -233,12 +233,12 @@ struct BlockImages
 // 391 vines EW                423 glass pane N            455 nether stairs inv N
 // 392 vines NEW               424 glass pane S            456 nether stairs inv W
 // 393 vines SEW               425 glass pane E            457 nether stairs inv E
-// 394 vines NSEW              426 glass pane W
-// 395 stem level 0            427 jungle log
-// 396 stem level 1            428 jungle leaves
-// 397 stem level 2            429 jungle sapling
-// 398 stem level 3            430 circle stone brick
-// 399 stem level 4            431 hieroglyphic sandstone
+// 394 vines NSEW              426 glass pane W            458 stone slab inv
+// 395 stem level 0            427 jungle log              459 sandstone slab inv
+// 396 stem level 1            428 jungle leaves           460 wooden slab inv
+// 397 stem level 2            429 jungle sapling          461 cobblestone slab inv
+// 398 stem level 3            430 circle stone brick      462 brick slab inv
+// 399 stem level 4            431 hieroglyphic sandstone  463 stone brick slab inv
 // 400 stem level 5            432 smooth sandstone
 // 401 stem level 6            433 redstone lamp on
 // 402 stem level 7            434 redstone lamp off
