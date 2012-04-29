@@ -1794,6 +1794,18 @@ void BlockImages::setOffsets()
 	setOffsetsForID(122, 378, *this);
 	setOffsetsForID(123, 434, *this);
 	setOffsetsForID(124, 433, *this);
+	setOffsetsForID(125, 5, *this);
+	blockOffsets[offsetIdx(125, 1)] = 435;
+	blockOffsets[offsetIdx(125, 2)] = 436;
+	blockOffsets[offsetIdx(125, 3)] = 437;
+	setOffsetsForID(126, 230, *this);
+	blockOffsets[offsetIdx(126, 1)] = 464;
+	blockOffsets[offsetIdx(126, 2)] = 466;
+	blockOffsets[offsetIdx(126, 3)] = 468;
+	blockOffsets[offsetIdx(126, 8)] = 460;
+	blockOffsets[offsetIdx(126, 9)] = 465;
+	blockOffsets[offsetIdx(126, 10)] = 467;
+	blockOffsets[offsetIdx(126, 11)] = 469;
 }
 
 void BlockImages::checkOpacityAndTransparency(int B)
@@ -2159,12 +2171,18 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawPartialBlockImage(img, getRect(231), tiles, 16, 16, 16, B, CUTOFF_8_16, 0, 0, 0, true);  // cobble slab
 	drawPartialBlockImage(img, getRect(302), tiles, 7, 7, 7, B, CUTOFF_8_16, 0, 0, 0, true);  // brick slab
 	drawPartialBlockImage(img, getRect(303), tiles, 54, 54, 54, B, CUTOFF_8_16, 0, 0, 0, true);  // stone brick slab
+	drawPartialBlockImage(img, getRect(464), tiles, 198, 198, 198, B, CUTOFF_8_16, 0, 0, 0, true);  // pine slab
+	drawPartialBlockImage(img, getRect(466), tiles, 214, 214, 214, B, CUTOFF_8_16, 0, 0, 0, true);  // birch slab
+	drawPartialBlockImage(img, getRect(468), tiles, 199, 199, 199, B, CUTOFF_8_16, 0, 0, 0, true);  // jungle slab
 	drawPartialBlockImage(img, getRect(458), tiles, 5, 5, 6, B, 0, CUTOFF_8_16, 0, 0, false);  // stone slab inv
 	drawPartialBlockImage(img, getRect(459), tiles, 192, 192, 176, B, 0, CUTOFF_8_16, 0, 0, false);  // sandstone slab inv
 	drawPartialBlockImage(img, getRect(460), tiles, 4, 4, 4, B, 0, CUTOFF_8_16, 0, 0, false);  // wooden slab inv
 	drawPartialBlockImage(img, getRect(461), tiles, 16, 16, 16, B, 0, CUTOFF_8_16, 0, 0, false);  // cobble slab inv
 	drawPartialBlockImage(img, getRect(462), tiles, 7, 7, 7, B, 0, CUTOFF_8_16, 0, 0, false);  // brick slab inv
 	drawPartialBlockImage(img, getRect(463), tiles, 54, 54, 54, B, 0, CUTOFF_8_16, 0, 0, false);  // stone brick slab inv
+	drawPartialBlockImage(img, getRect(465), tiles, 198, 198, 198, B, 0, CUTOFF_8_16, 0, 0, false);  // pine slab inv
+	drawPartialBlockImage(img, getRect(467), tiles, 214, 214, 214, B, 0, CUTOFF_8_16, 0, 0, false);  // birch slab inv
+	drawPartialBlockImage(img, getRect(469), tiles, 199, 199, 199, B, 0, CUTOFF_8_16, 0, 0, false);  // jungle slab inv
 	drawPartialBlockImage(img, getRect(110), tiles, 1, 1, 1, B, CUTOFF_14_16, 0, 0, 0, true);  // stone pressure plate
 	drawPartialBlockImage(img, getRect(119), tiles, 4, 4, 4, B, CUTOFF_14_16, 0, 0, 0, true);  // wood pressure plate
 	drawPartialBlockImage(img, getRect(127), tiles, 66, 66, 66, B, CUTOFF_12_16, 0, 0, 0, true);  // snow
