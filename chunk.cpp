@@ -1,4 +1,4 @@
-// Copyright 2010, 2011 Michael J. Nelson
+// Copyright 2010-2012 Michael J. Nelson
 //
 // This file is part of pigmap.
 //
@@ -104,14 +104,17 @@ struct chunkSection
 	int y;  // or -1 for "not found yet"
 	const uint8_t *blockIDs;  // pointer into the file buffer, or NULL for "not found yet"
 	const uint8_t *blockData;  // pointer into the file buffer, or NULL for "not found yet"
+	const uint8_t *blockAdd;  // pointer into the file buffer, or NULL for "not found" (this one may not be present at all)
 
-	chunkSection() : y(-1), blockIDs(NULL), blockData(NULL) {}
+	chunkSection() : y(-1), blockIDs(NULL), blockData(NULL), blockAdd(NULL) {}
 	bool complete() const {return y >= 0 && y < 16 && blockIDs != NULL && blockData != NULL;}
 	
 	void extract(ChunkData& chunkdata) const
 	{
 		copy(blockIDs, blockIDs + 4096, chunkdata.blockIDs + (y * 4096));
 		copy(blockData, blockData + 2048, chunkdata.blockData + (y * 2048));
+		if (blockAdd != NULL)
+			copy(blockAdd, blockAdd + 2048, chunkdata.blockAdd + (y * 2048));
 	}
 };
 
@@ -168,6 +171,8 @@ bool parsePayload(const uint8_t*& ptr, uint8_t type, vector<string>& names, chun
 					section->blockIDs = ptr;
 				else if (names.back() == "Data" && len == 2048)
 					section->blockData = ptr;
+				else if (names.back() == "Add" && len == 2048)
+					section->blockAdd = ptr;
 			}
 			ptr += len;
 			return true;
@@ -239,6 +244,7 @@ bool ChunkData::loadFromAnvilFile(const vector<uint8_t>& filebuf)
 {
 	anvil = true;
 	fill(blockIDs, blockIDs + 65536, 0);
+	fill(blockAdd, blockAdd + 32768, 0);
 	fill(blockData, blockData + 32768, 0);
 
 	const uint8_t *ptr = &(filebuf[0]);

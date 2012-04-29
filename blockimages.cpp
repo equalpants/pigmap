@@ -1,4 +1,4 @@
-// Copyright 2010, 2011 Michael J. Nelson
+// Copyright 2010-2012 Michael J. Nelson
 //
 // This file is part of pigmap.
 //
@@ -54,7 +54,7 @@ int getBlockImagesVersion(int B, const string& imgpath)
 	int32_t v;
 	infile >> v;
 	// if the version is clearly insane, ignore it
-	if (v < 0 || v > 1000)
+	if (v < 0 || v > 10000)
 		v = 0;
 	return v;
 }
@@ -1311,12 +1311,12 @@ void drawDragonEgg(RGBAImage& dest, const ImageRect& drect, const RGBAImage& til
 
 
 
-int offsetIdx(uint8_t blockID, uint8_t blockData)
+int offsetIdx(uint16_t blockID, uint8_t blockData)
 {
 	return blockID * 16 + blockData;
 }
 
-void setOffsetsForID(uint8_t blockID, int offset, BlockImages& bi)
+void setOffsetsForID(uint16_t blockID, int offset, BlockImages& bi)
 {
 	int start = blockID * 16;
 	int end = start + 16;
@@ -1326,7 +1326,7 @@ void setOffsetsForID(uint8_t blockID, int offset, BlockImages& bi)
 void BlockImages::setOffsets()
 {
 	// default is the dummy image
-	fill(blockOffsets, blockOffsets + 256*16, 0);
+	fill(blockOffsets, blockOffsets + 4096*16, 0);
 
 	//!!!!!! might want to use darker redstone wire for lower strength, just for some visual variety?
 

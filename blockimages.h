@@ -1,4 +1,4 @@
-// Copyright 2010, 2011 Michael J. Nelson
+// Copyright 2010-2012 Michael J. Nelson
 //
 // This file is part of pigmap.
 //
@@ -80,27 +80,27 @@ struct BlockImages
 	RGBAImage img;
 	int rectsize;  // size of block image bounding boxes
 
-	// for every possible 8-bit block id/4-bit block data combination, this holds the offset into the image
+	// for every possible 12-bit block id/4-bit block data combination, this holds the offset into the image
 	//  (unrecognized id/data values are pointed at the dummy block image)
 	// this doesn't handle some things like fences and double chests where the rendering doesn't depend solely
 	//  on the blockID/blockData; for those, the renderer just has to know the proper offsets on its own
-	int blockOffsets[256 * 16];
-	int getOffset(uint8_t blockID, uint8_t blockData) const {return blockOffsets[blockID * 16 + blockData];}
+	int blockOffsets[4096 * 16];
+	int getOffset(uint16_t blockID, uint8_t blockData) const {return blockOffsets[blockID * 16 + blockData];}
 
 	// check whether a block image is opaque (this is a function of the block images computed from the terrain,
 	//  not of the actual block data; if a block image has 100% alpha everywhere, it's considered opaque)
 	std::vector<bool> opacity;  // size is NUMBLOCKIMAGES; indexed by offset
 	bool isOpaque(int offset) const {return opacity[offset];}
-	bool isOpaque(uint8_t blockID, uint8_t blockData) const {return opacity[getOffset(blockID, blockData)];}
+	bool isOpaque(uint16_t blockID, uint8_t blockData) const {return opacity[getOffset(blockID, blockData)];}
 
 	// ...and the same thing for complete transparency (0% alpha everywhere)
 	std::vector<bool> transparency;  // size is NUMBLOCKIMAGES; indexed by offset
 	bool isTransparent(int offset) const {return transparency[offset];}
-	bool isTransparent(uint8_t blockID, uint8_t blockData) const {return transparency[getOffset(blockID, blockData)];}
+	bool isTransparent(uint16_t blockID, uint8_t blockData) const {return transparency[getOffset(blockID, blockData)];}
 
 	// get the rectangle in img corresponding to an offset
 	ImageRect getRect(int offset) const {return ImageRect((offset%16)*rectsize, (offset/16)*rectsize, rectsize, rectsize);}
-	ImageRect getRect(uint8_t blockID, uint8_t blockData) const {return getRect(getOffset(blockID, blockData));}
+	ImageRect getRect(uint16_t blockID, uint8_t blockData) const {return getRect(getOffset(blockID, blockData));}
 
 	// attempt to create a BlockImages structure: look for blocks-B.png in the imgpath, where B is the block size
 	//  parameter; failing that, look for terrain.png and construct a new blocks-B.png from it; failing that, uh, fail

@@ -1,4 +1,4 @@
-// Copyright 2010, 2011 Michael J. Nelson
+// Copyright 2010-2012 Michael J. Nelson
 //
 // This file is part of pigmap.
 //
@@ -45,16 +45,20 @@ struct BlockOffset
 struct ChunkData
 {
 	uint8_t blockIDs[65536];  // one byte per block (only half of this space used for old-style chunks)
+	uint8_t blockAdd[32768];  // only in Anvil--extra bits for block ID (4 bits per block)
 	uint8_t blockData[32768];  // 4 bits per block (only half of this space used for old-style chunks)
 	bool anvil;  // whether this data came from an Anvil chunk or an old-style one
 
 	// these guys assume that the BlockIdx actually points to this chunk
 	//  (so they only look at the lower bits)
-	uint8_t id(const BlockOffset& bo) const
+	uint16_t id(const BlockOffset& bo) const
 	{
 		if (!anvil)
 			return (bo.y > 127) ? 0 : blockIDs[(bo.x * 16 + bo.z) * 128 + bo.y];
-		return blockIDs[(bo.y * 16 + bo.z) * 16 + bo.x];
+		int i = (bo.y * 16 + bo.z) * 16 + bo.x;
+		if ((i % 2) == 0)
+			return ((blockAdd[i/2] & 0xf) << 8) | blockIDs[i];
+		return ((blockAdd[i/2] & 0xf0) << 4) | blockIDs[i];
 	}
 	uint8_t data(const BlockOffset& bo) const
 	{
@@ -134,6 +138,7 @@ struct ChunkCache : private nocopy
 	{
 		memset(blankdata.blockIDs, 0, 65536);
 		memset(blankdata.blockData, 0, 32768);
+		memset(blankdata.blockAdd, 0, 32768);
 		blankdata.anvil = true;
 		readbuf.reserve(262144);
 	}

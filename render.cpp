@@ -1,4 +1,4 @@
-// Copyright 2010 Michael J. Nelson
+// Copyright 2010-2012 Michael J. Nelson
 //
 // This file is part of pigmap.
 //
@@ -219,14 +219,16 @@ void buildDependencies(SceneGraph& sg, int pcol1, int pcol2, int which)
 //  doesn't depend purely on its blockID/blockData
 // examples: for nodes with no E/S neighbors, we add a little darkness on the EU/SU edge to indicate drop-off;
 //  for chests, we may need to draw half of a double chest instead if there's another chest next door; etc.
-void checkSpecial(SceneGraphNode& node, uint8_t blockID, uint8_t blockData, const PosChunkIdx& ci, ChunkData *chunkdata, RenderJob& rj)
+void checkSpecial(SceneGraphNode& node, uint16_t blockID, uint8_t blockData, const PosChunkIdx& ci, ChunkData *chunkdata, RenderJob& rj)
 {
 	const BlockIdx& bi = node.bi;
+	
+	uint16_t blockIDN, blockIDS, blockIDE, blockIDW, blockIDU, blockIDD;
+	uint8_t blockDataN, blockDataS, blockDataE, blockDataW, blockDataU, blockDataD;
 
 	if (node.bimgoffset == 8)  // solid water
 	{
 		// if there's water to the W or N, we don't draw those faces
-		uint8_t blockIDN, blockDataN, blockIDW, blockDataW;
 		GETNEIGHBOR(blockIDN, blockDataN, BlockIdx(-1,0,0))
 		GETNEIGHBOR(blockIDW, blockDataW, BlockIdx(0,1,0))
 		bool waterN = blockIDN == 8 || blockIDN == 9;
@@ -241,7 +243,6 @@ void checkSpecial(SceneGraphNode& node, uint8_t blockID, uint8_t blockData, cons
 	else if (blockID == 79)  // ice
 	{
 		// if there's ice to the W or N, we don't draw those faces
-		uint8_t blockIDN, blockDataN, blockIDW, blockDataW;
 		GETNEIGHBOR(blockIDN, blockDataN, BlockIdx(-1,0,0))
 		GETNEIGHBOR(blockIDW, blockDataW, BlockIdx(0,1,0))
 		bool iceN = blockIDN == 79;
@@ -255,7 +256,6 @@ void checkSpecial(SceneGraphNode& node, uint8_t blockID, uint8_t blockData, cons
 	}
 	else if (blockID == 85)  // fence
 	{
-		uint8_t blockIDN, blockDataN, blockIDE, blockDataE, blockIDS, blockDataS, blockIDW, blockDataW;
 		GETNEIGHBOR(blockIDN, blockDataN, BlockIdx(-1,0,0))
 		GETNEIGHBOR(blockIDS, blockDataS, BlockIdx(1,0,0))
 		GETNEIGHBOR(blockIDE, blockDataE, BlockIdx(0,-1,0))
@@ -269,7 +269,6 @@ void checkSpecial(SceneGraphNode& node, uint8_t blockID, uint8_t blockData, cons
 	}
 	else if (blockID == 113)  // nether fence
 	{
-		uint8_t blockIDN, blockDataN, blockIDE, blockDataE, blockIDS, blockDataS, blockIDW, blockDataW;
 		GETNEIGHBOR(blockIDN, blockDataN, BlockIdx(-1,0,0))
 		GETNEIGHBOR(blockIDS, blockDataS, BlockIdx(1,0,0))
 		GETNEIGHBOR(blockIDE, blockDataE, BlockIdx(0,-1,0))
@@ -283,7 +282,6 @@ void checkSpecial(SceneGraphNode& node, uint8_t blockID, uint8_t blockData, cons
 	}
 	else if (blockID == 54)  // chest
 	{
-		uint8_t blockIDN, blockDataN, blockIDE, blockDataE, blockIDS, blockDataS, blockIDW, blockDataW;
 		GETNEIGHBOR(blockIDN, blockDataN, BlockIdx(-1,0,0))
 		GETNEIGHBOR(blockIDS, blockDataS, BlockIdx(1,0,0))
 		GETNEIGHBOR(blockIDE, blockDataE, BlockIdx(0,-1,0))
@@ -302,7 +300,6 @@ void checkSpecial(SceneGraphNode& node, uint8_t blockID, uint8_t blockData, cons
 	}
 	else if (blockID == 95)  // locked chest
 	{
-		uint8_t blockIDW, blockDataW;
 		GETNEIGHBOR(blockIDW, blockDataW, BlockIdx(0,1,0))
 		// if there's an opaque block to the W, we should face N instead
 		if (rj.blockimages.isOpaque(blockIDW, blockDataW))
@@ -310,7 +307,6 @@ void checkSpecial(SceneGraphNode& node, uint8_t blockID, uint8_t blockData, cons
 	}
 	else if (blockID == 101)  // iron bars
 	{
-		uint8_t blockIDN, blockDataN, blockIDE, blockDataE, blockIDS, blockDataS, blockIDW, blockDataW;
 		GETNEIGHBOR(blockIDN, blockDataN, BlockIdx(-1,0,0))
 		GETNEIGHBOR(blockIDS, blockDataS, BlockIdx(1,0,0))
 		GETNEIGHBOR(blockIDE, blockDataE, BlockIdx(0,-1,0))
@@ -322,7 +318,6 @@ void checkSpecial(SceneGraphNode& node, uint8_t blockID, uint8_t blockData, cons
 	}
 	else if (blockID == 102)  // glass pane
 	{
-		uint8_t blockIDN, blockDataN, blockIDE, blockDataE, blockIDS, blockDataS, blockIDW, blockDataW;
 		GETNEIGHBOR(blockIDN, blockDataN, BlockIdx(-1,0,0))
 		GETNEIGHBOR(blockIDS, blockDataS, BlockIdx(1,0,0))
 		GETNEIGHBOR(blockIDE, blockDataE, BlockIdx(0,-1,0))
@@ -334,7 +329,6 @@ void checkSpecial(SceneGraphNode& node, uint8_t blockID, uint8_t blockData, cons
 	}
 	else if ((blockID == 104 || blockID == 105) && blockData == 7)  // full stem
 	{
-		uint8_t blockIDN, blockDataN, blockIDE, blockDataE, blockIDS, blockDataS, blockIDW, blockDataW;
 		GETNEIGHBOR(blockIDN, blockDataN, BlockIdx(-1,0,0))
 		GETNEIGHBOR(blockIDS, blockDataS, BlockIdx(1,0,0))
 		GETNEIGHBOR(blockIDE, blockDataE, BlockIdx(0,-1,0))
@@ -351,7 +345,6 @@ void checkSpecial(SceneGraphNode& node, uint8_t blockID, uint8_t blockData, cons
 	}
 	else if (blockID == 64)  // wooden door
 	{
-		uint8_t blockIDU, blockDataU, blockIDD, blockDataD;
 		GETNEIGHBORUD(blockIDU, blockDataU, BlockIdx(0,0,1))
 		GETNEIGHBORUD(blockIDD, blockDataD, BlockIdx(0,0,-1))
 		bool isTop = blockIDD == 64;
@@ -366,7 +359,6 @@ void checkSpecial(SceneGraphNode& node, uint8_t blockID, uint8_t blockData, cons
 	}
 	else if (blockID == 71)  // iron door
 	{
-		uint8_t blockIDU, blockDataU, blockIDD, blockDataD;
 		GETNEIGHBORUD(blockIDU, blockDataU, BlockIdx(0,0,1))
 		GETNEIGHBORUD(blockIDD, blockDataD, BlockIdx(0,0,-1))
 		bool isTop = blockIDD == 71;
@@ -384,7 +376,6 @@ void checkSpecial(SceneGraphNode& node, uint8_t blockID, uint8_t blockData, cons
 	//          probably use them, too
 	if (rj.blockimages.isOpaque(node.bimgoffset))
 	{
-		uint8_t blockIDS, blockDataS, blockIDE, blockDataE, blockIDD, blockDataD;
 		GETNEIGHBOR(blockIDS, blockDataS, BlockIdx(1,0,0))
 		GETNEIGHBOR(blockIDE, blockDataE, BlockIdx(0,-1,0))
 		GETNEIGHBOR(blockIDD, blockDataD, BlockIdx(0,0,-1))
@@ -565,7 +556,7 @@ bool renderTile(const TileIdx& ti, RenderJob& rj, RGBAImage& tile)
 				chunkdata = rj.chunkcache->getData(ci);
 
 			// get block type and data
-			uint8_t blockID = chunkdata->id(pcit.current);
+			uint16_t blockID = chunkdata->id(pcit.current);
 			uint8_t blockData = chunkdata->data(pcit.current);
 			int initialoffset = blockimages.getOffset(blockID, blockData);  // we might use a different one after checkSpecial
 
