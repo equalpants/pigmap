@@ -1,4 +1,4 @@
-// Copyright 2010, 2011 Michael J. Nelson
+// Copyright 2010-2012 Michael J. Nelson
 //
 // This file is part of pigmap.
 //
@@ -129,6 +129,17 @@ template <class T> struct stackPusher
 	stackPusher(std::vector<T>& v, const T& item) : vec(v) {vec.push_back(item);}
 	~stackPusher() {vec.pop_back();}
 };
+
+
+// fast version for dividing by 16 (important for BlockIdx::getChunkIdx, which is called very very frequently)
+inline int64_t floordiv16(int64_t a)
+{
+	// right-shifting a negative is undefined, so just do the division--the compiler will probably know
+	//  whether it can use a shift anyway
+	if (a < 0)
+		return (a - 15) / 16;
+	return a >> 4;
+}
 
 
 #endif // UTILS_H

@@ -516,13 +516,13 @@ bool renderTile(const TileIdx& ti, RenderJob& rj, RGBAImage& tile)
 		cerr << "attempted to draw tile [" << ti.x << "," << ti.y << "] more than once!" << endl;
 		return false;
 	}
+	
+	// mark this tile drawn
+	rj.tiletable->setDrawn(ti);
 
-	// if we're in test mode, pretend we've successfully drawn
+	// if we're in test mode, don't actually draw anything
 	if (rj.testmode)
-	{
-		rj.tiletable->setDrawn(ti);
 		return true;
-	}
 
 	SceneGraph& sg = *rj.scenegraph;
 	sg.clear();
@@ -600,15 +600,19 @@ bool renderTile(const TileIdx& ti, RenderJob& rj, RGBAImage& tile)
 		if (tbit.nextSE != -1)
 			buildDependencies(sg, tbit.nextSE, tbit.pos, 6);
 	}
+	
+	// if we didn't find anything to draw--i.e. our final image will be fully transparent--then there's
+	//  no sense saving it to disk
+	if (sg.nodes.empty())
+		return false;
 
 	// step 2: traverse the graph and draw the image
 	for (int i = 0; i < (int)sg.nodes.size(); i++)
 		drawSubgraph(sg, i, tile, blockimages);
 
-	// save the image to disk and mark this tile drawn
+	// save the image to disk
 	if (!tile.writePNG(tilefile))
 		cerr << "failed to write " << tilefile << endl;
-	rj.tiletable->setDrawn(ti);
 	return true;
 }
 

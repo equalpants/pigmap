@@ -1,4 +1,4 @@
-// Copyright 2010, 2011 Michael J. Nelson
+// Copyright 2010-2012 Michael J. Nelson
 //
 // This file is part of pigmap.
 //
@@ -128,7 +128,7 @@ bool BlockIdx::occludes(const BlockIdx& bi) const
 
 ChunkIdx BlockIdx::getChunkIdx() const
 {
-	return ChunkIdx(floordiv(x, 16), floordiv(z, 16));
+	return ChunkIdx(floordiv16(x), floordiv16(z));
 }
 
 BlockIdx BlockIdx::topBlock(const Pixel& p, const MapParams& mp)
