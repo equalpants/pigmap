@@ -116,11 +116,9 @@ struct BlockImages
 	//  push them all the way
 	void retouchAlphas(int B);
 
-	// build block images from terrain.png
-	bool construct(int B, const std::string& terrainfile, const std::string& firefile, const std::string& endportalfile);
+	// build block images from terrain.png, etc.
+	bool construct(int B, const std::string& terrainfile, const std::string& firefile, const std::string& endportalfile, const std::string& chestfile, const std::string& largechestfile, const std::string& enderchestfile);
 };
-
-#define NUMBLOCKIMAGES 470
 
 // block image offsets:
 //
@@ -145,8 +143,8 @@ struct BlockImages
 // 18 lava level 2             50 wood stairs asc S        82 ladder E side            114 iron door E side
 // 19 lava level 1             51 wood stairs asc N        83 ladder W side            115 iron door top S
 // 20 sand                     52 wood stairs asc W        84 ladder N side            116 iron door top N
-// 21 gravel                   53 wood stairs asc E        85 ladder S side            117 iron door top W
-// 22 gold ore                 54 chest facing W           86 track EW                 118 iron door top E
+// 21 UNUSED                   53 wood stairs asc E        85 ladder S side            117 iron door top W
+// 22 gold ore                 54 UNUSED                   86 track EW                 118 iron door top E
 // 23 iron ore                 55 redstone wire NSEW       87 track NS                 119 wood pressure plate
 // 24 coal ore                 56 diamond ore              88 UNUSED                   120 redstone ore
 // 25 log                      57 diamond block            89 UNUSED                   121 red torch floor off
@@ -170,11 +168,11 @@ struct BlockImages
 // 138 glowstone               170 fence NEW               202 track asc E             234 UNUSED
 // 139 portal                  171 fence SEW               203 track asc W             235 UNUSED
 // 140 jack-o-lantern W        172 fence NSEW              204 orange wool             236 UNUSED
-// 141 red torch S on          173 double chest N facing W 205 magenta wool            237 UNUSED
-// 142 red torch N on          174 double chest S facing W 206 light blue wool         238 UNUSED
-// 143 red torch E on          175 double chest E facing N 207 yellow wool             239 UNUSED
-// 144 red torch W on          176 double chest W facing N 208 lime wool               240 repeater on N
-// 145 red torch S off         177 chest facing N          209 pink wool               241 repeater on S
+// 141 red torch S on          173 UNUSED                  205 magenta wool            237 UNUSED
+// 142 red torch N on          174 UNUSED                  206 light blue wool         238 UNUSED
+// 143 red torch E on          175 UNUSED                  207 yellow wool             239 UNUSED
+// 144 red torch W on          176 UNUSED                  208 lime wool               240 repeater on N
+// 145 red torch S off         177 UNUSED                  209 pink wool               241 repeater on S
 // 146 red torch N off         178 water missing W         210 gray wool               242 repeater on E
 // 147 red torch E off         179 water missing N         211 light gray wool         243 repeater on W
 // 148 red torch W off         180 ice surface             212 cyan wool               244 repeater off N
@@ -199,11 +197,11 @@ struct BlockImages
 // 262 booster off asc E       294 stone brick             326 nether fence SW         358 iron bars NW
 // 263 booster off asc W       295 mossy stone brick       327 nether fence NSW        359 iron bars SE
 // 264 detector EW             296 cracked stone brick     328 nether fence EW         360 iron bars SW
-// 265 detector NS             297 chest facing E/S        329 nether fence NEW        361 iron bars EW
-// 266 detector asc S          298 double chest N facing E 330 nether fence SEW        362 iron bars SEW
-// 267 detector asc N          299 double chest S facing E 331 nether fence NSEW       363 iron bars NEW
-// 268 detector asc E          300 double chest E facing S 332 nether fence post       364 iron bars NSW
-// 269 detector asc W          301 double chest W facing S 333 netherwart small        365 iron bars NSE
+// 265 detector NS             297 UNUSED                  329 nether fence NEW        361 iron bars EW
+// 266 detector asc S          298 UNUSED                  330 nether fence SEW        362 iron bars SEW
+// 267 detector asc N          299 UNUSED                  331 nether fence NSEW       363 iron bars NEW
+// 268 detector asc E          300 UNUSED                  332 nether fence post       364 iron bars NSW
+// 269 detector asc W          301 UNUSED                  333 netherwart small        365 iron bars NSE
 // 270 locked chest facing W   302 brick slab              334 netherwart medium       366 glass pane NSEW
 // 271 locked chest facing N   303 stone brick slab        335 netherwart large        367 glass pane NS
 // 272 web                     304 brick stairs asc S      336 mushroom flesh          368 glass pane NE
@@ -223,38 +221,73 @@ struct BlockImages
 // 286 bed foot N              318 nether fence S          350 brewing stand           382 vines NS
 // 287 bed foot E              319 nether fence NS         351 cauldron empty          383 vines E
 //
-// 384 vines NE                416 closed sticky piston S  448 brick stairs inv W
-// 385 vines SE                417 closed sticky piston W  449 brick stairs inv E
-// 386 vines NSE               418 closed sticky piston E  450 stone brick stairs inv S
-// 387 vines W                 419 iron bars N             451 stone brick stairs inv N
-// 388 vines NW                420 iron bars S             452 stone brick stairs inv W
-// 389 vines SW                421 iron bars E             453 stone brick stairs inv E
-// 390 vines NSW               422 iron bars W             454 nether stairs inv S
-// 391 vines EW                423 glass pane N            455 nether stairs inv N
-// 392 vines NEW               424 glass pane S            456 nether stairs inv W
-// 393 vines SEW               425 glass pane E            457 nether stairs inv E
-// 394 vines NSEW              426 glass pane W            458 stone slab inv
-// 395 stem level 0            427 jungle log              459 sandstone slab inv
-// 396 stem level 1            428 jungle leaves           460 wooden slab inv
-// 397 stem level 2            429 jungle sapling          461 cobblestone slab inv
-// 398 stem level 3            430 circle stone brick      462 brick slab inv
-// 399 stem level 4            431 hieroglyphic sandstone  463 stone brick slab inv
-// 400 stem level 5            432 smooth sandstone        464 pine slab
-// 401 stem level 6            433 redstone lamp on        465 pine slab inv
-// 402 stem level 7            434 redstone lamp off       466 birch slab
-// 403 stem pointing N         435 pine planks             467 birch slab inv
-// 404 stem pointing S         436 birch planks            468 jungle slab
-// 405 stem pointing E         437 jungle planks           469 jungle slab inv
-// 406 stem pointing W         438 wood stairs inv S
-// 407 closed piston D         439 wood stairs inv N
-// 408 closed piston U         440 wood stairs inv W
-// 409 closed piston N         441 wood stairs inv E
-// 410 closed piston S         442 cobble stairs inv S
-// 411 closed piston W         443 cobble stairs inv N
-// 412 closed piston E         444 cobble stairs inv W
-// 413 closed sticky piston D  445 cobble stairs inv E
-// 414 closed sticky piston U  446 brick stairs inv S
-// 415 closed sticky piston N  447 brick stairs inv N
+// 384 vines NE                416 closed sticky piston S  448 brick stairs inv W       480 ender chest facing N
+// 385 vines SE                417 closed sticky piston W  449 brick stairs inv E       481 ender chest facing E/S
+// 386 vines NSE               418 closed sticky piston E  450 stone brick stairs inv S 482 emerald block
+// 387 vines W                 419 iron bars N             451 stone brick stairs inv N 483 gravel
+// 388 vines NW                420 iron bars S             452 stone brick stairs inv W 484 chest facing W
+// 389 vines SW                421 iron bars E             453 stone brick stairs inv E 485 chest facing N
+// 390 vines NSW               422 iron bars W             454 nether stairs inv S      486 chest facing E/S
+// 391 vines EW                423 glass pane N            455 nether stairs inv N      487 double chest N facing W
+// 392 vines NEW               424 glass pane S            456 nether stairs inv W      488 double chest S facing W
+// 393 vines SEW               425 glass pane E            457 nether stairs inv E      489 double chest E facing N
+// 394 vines NSEW              426 glass pane W            458 stone slab inv           490 double chest W facing N
+// 395 stem level 0            427 jungle log              459 sandstone slab inv       491 double chest N facing E
+// 396 stem level 1            428 jungle leaves           460 wooden slab inv          492 double chest S facing E
+// 397 stem level 2            429 jungle sapling          461 cobblestone slab inv     493 double chest E facing S
+// 398 stem level 3            430 circle stone brick      462 brick slab inv           494 double chest W facing S
+// 399 stem level 4            431 hieroglyphic sandstone  463 stone brick slab inv     495 pine stairs asc S
+// 400 stem level 5            432 smooth sandstone        464 pine slab                496 pine stairs asc N
+// 401 stem level 6            433 redstone lamp on        465 pine slab inv            497 pine stairs asc W
+// 402 stem level 7            434 redstone lamp off       466 birch slab               498 pine stairs asc E
+// 403 stem pointing N         435 pine planks             467 birch slab inv           499 pine stairs inv S
+// 404 stem pointing S         436 birch planks            468 jungle slab              500 pine stairs inv N
+// 405 stem pointing E         437 jungle planks           469 jungle slab inv          501 pine stairs inv W
+// 406 stem pointing W         438 wood stairs inv S       470 sandstone stairs asc S   502 pine stairs inv E
+// 407 closed piston D         439 wood stairs inv N       471 sandstone stairs asc N   503 birch stairs asc S
+// 408 closed piston U         440 wood stairs inv W       472 sandstone stairs asc W   504 birch stairs asc N
+// 409 closed piston N         441 wood stairs inv E       473 sandstone stairs asc E   505 birch stairs asc W
+// 410 closed piston S         442 cobble stairs inv S     474 sandstone stairs inv S   506 birch stairs asc E
+// 411 closed piston W         443 cobble stairs inv N     475 sandstone stairs inv N   507 birch stairs inv S
+// 412 closed piston E         444 cobble stairs inv W     476 sandstone stairs inv W   508 birch stairs inv N
+// 413 closed sticky piston D  445 cobble stairs inv E     477 sandstone stairs inv E   509 birch stairs inv W
+// 414 closed sticky piston U  446 brick stairs inv S      478 emerald ore              510 birch stairs inv E
+// 415 closed sticky piston N  447 brick stairs inv N      479 ender chest facing W     511 jungle stairs asc S
+//
+// 512 jungle stairs asc N     544 tripwire NS
+// 513 jungle stairs asc W     545 tripwire NE
+// 514 jungle stairs asc E     546 tripwire NW
+// 515 jungle stairs inv S     547 tripwire SE
+// 516 jungle stairs inv N     548 tripwire SW
+// 517 jungle stairs inv W     549 tripwire EW
+// 518 jungle stairs inv E     550 tripwire SEW
+// 519 cocoa level 0 stem N    551 tripwire NEW
+// 520 cocoa level 0 stem S    552 tripwire NSW
+// 521 cocoa level 0 stem E    553 tripwire NSE
+// 522 cocoa level 0 stem W
+// 523 cocoa level 1 stem N
+// 524 cocoa level 1 stem S
+// 525 cocoa level 1 stem E
+// 526 cocoa level 1 stem W
+// 527 cocoa level 2 stem N
+// 528 cocoa level 2 stem S
+// 529 cocoa level 2 stem E
+// 530 cocoa level 2 stem W
+// 531 log EW
+// 532 log NS
+// 533 pine log EW
+// 534 pine log NS
+// 535 birch log EW
+// 536 birch log NS
+// 537 jungle log EW
+// 538 jungle log NS
+// 539 tripwire hook S
+// 540 tripwire hook N
+// 541 tripwire hook W
+// 542 tripwire hook E
+// 543 tripwire NSEW
+
+#define NUMBLOCKIMAGES 554
 
 
 

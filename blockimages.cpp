@@ -103,9 +103,14 @@ bool BlockImages::create(int B, const string& imgpath)
 	string terrainfile = imgpath + "/terrain.png";
 	string firefile = imgpath + "/fire.png";
 	string endportalfile = imgpath + "/endportal.png";
-	if (!construct(B, terrainfile, firefile, endportalfile))
+	string chestfile = imgpath + "/chest.png";
+	string largechestfile = imgpath + "/largechest.png";
+	string enderchestfile = imgpath + "/enderchest.png";
+	if (!construct(B, terrainfile, firefile, endportalfile, chestfile, largechestfile, enderchestfile))
 	{
-		cerr << "image path is missing at least one of: terrain.png, fire.png, endportal.png" << endl;
+		cerr << "image path is missing at least one of these required files:" << endl;
+		cerr << "terrain.png, chest.png, largechest.png, enderchest.png -- from minecraft.jar or your tile pack" << endl;
+		cerr << "fire.png, endportal.png -- included with pigmap" << endl;
 		return false;
 	}
 
@@ -145,6 +150,86 @@ RGBAImage getResizedTerrain(const RGBAImage& terrain, int terrainSize, int B)
 			       img, ImageRect(x*newsize, y*newsize, newsize, newsize));
 	return img;
 }
+
+// take the various textures from chest.png and use them to construct "flat" 14x14 tiles (or whatever
+//  the multiplied size is, if the textures are larger), then resize those flat images to 2Bx2B
+// ...the resulting image will be a 3x1 array of 2Bx2B images: first the top, then the front, then
+//  the side
+RGBAImage getResizedChest(const RGBAImage& chest, int scale, int B)
+{
+	int chestSize = 14 * scale;
+	RGBAImage chesttiles;
+	chesttiles.create(chestSize*3, chestSize);
+	
+	// top texture just gets copied straight over
+	blit(chest, ImageRect(14*scale, 0, 14*scale, 14*scale), chesttiles, 0, 0);
+	
+	// front tile gets the front lid texture plus the front bottom texture, then the latch on
+	//  top of that
+	blit(chest, ImageRect(14*scale, 14*scale, 14*scale, 4*scale), chesttiles, chestSize, 0);
+	blit(chest, ImageRect(14*scale, 33*scale, 14*scale, 10*scale), chesttiles, chestSize, 4*scale);
+	blit(chest, ImageRect(scale, scale, 2*scale, 4*scale), chesttiles, chestSize + 6*scale, 2*scale);
+	
+	// side tile gets the side lid texture plus the side bottom texture
+	blit(chest, ImageRect(28*scale, 14*scale, 14*scale, 4*scale), chesttiles, chestSize*2, 0);
+	blit(chest, ImageRect(28*scale, 33*scale, 14*scale, 10*scale), chesttiles, chestSize*2, 4*scale);
+
+	int newsize = 2*B;
+	RGBAImage img;
+	img.create(3*newsize, newsize);
+	for (int x = 0; x < 3; x++)
+		resize(chesttiles, ImageRect(x*chestSize, 0, chestSize, chestSize),
+		       img, ImageRect(x*newsize, 0, newsize, newsize));
+	return img;
+}
+
+// same thing for largechest.png--construct flat tiles, then resize
+// ...resulting image is a 7x1 array of 2Bx2B images:
+//  -left half of top
+//  -right half of top
+//  -left half of front
+//  -right half of front
+//  -left half of back
+//  -right half of back
+//  -side
+RGBAImage getResizedLargeChest(const RGBAImage& chest, int scale, int B)
+{
+	int newsize = 2*B;
+	RGBAImage img;
+	img.create(7*newsize, newsize);
+	
+	// top texture gets copied straight over--note that the original texture is 30x14, but
+	//  we're putting it into two squares
+	resize(chest, ImageRect(14*scale, 0, 30*scale, 14*scale), img, ImageRect(0, 0, newsize*2, newsize));
+	
+	// front tile gets the front lid texture plus the front bottom texture, then the latch
+	//  on top of that
+	RGBAImage fronttiles;
+	fronttiles.create(30*scale, 14*scale);
+	blit(chest, ImageRect(14*scale, 14*scale, 30*scale, 4*scale), fronttiles, 0, 0);
+	blit(chest, ImageRect(14*scale, 33*scale, 30*scale, 10*scale), fronttiles, 0, 4*scale);
+	blit(chest, ImageRect(scale, scale, 2*scale, 4*scale), fronttiles, 14*scale, 2*scale);
+	// do two resizes, to make sure the special end processing picks up the latch
+	resize(fronttiles, ImageRect(0, 0, 15*scale, 14*scale), img, ImageRect(2*newsize, 0, newsize, newsize));
+	resize(fronttiles, ImageRect(15*scale, 0, 15*scale, 14*scale), img, ImageRect(3*newsize, 0, newsize, newsize));
+	
+	// back tile gets the back lid texture plus the back bottom texture
+	RGBAImage backtiles;
+	backtiles.create(30*scale, 14*scale);
+	blit(chest, ImageRect(58*scale, 14*scale, 30*scale, 4*scale), backtiles, 0, 0);
+	blit(chest, ImageRect(58*scale, 33*scale, 30*scale, 10*scale), backtiles, 0, 4*scale);
+	resize(backtiles, ImageRect(0, 0, 30*scale, 14*scale), img, ImageRect(4*newsize, 0, 2*newsize, newsize));
+	
+	// side tile gets the side lid texture plus the side bottom texture
+	RGBAImage sidetile;
+	sidetile.create(14*scale, 14*scale);
+	blit(chest, ImageRect(44*scale, 14*scale, 14*scale, 4*scale), sidetile, 0, 0);
+	blit(chest, ImageRect(44*scale, 33*scale, 14*scale, 10*scale), sidetile, 0, 4*scale);
+	resize(sidetile, ImageRect(0, 0, 14*scale, 14*scale), img, ImageRect(6*newsize, 0, newsize, newsize));
+	
+	return img;
+}
+
 
 
 // iterate over the pixels of a 2B-sized terrain tile; used for both source rectangles and
@@ -327,79 +412,93 @@ struct TopFaceIterator
 };
 
 
+struct SourceTile
+{
+	const RGBAImage *image;  // or NULL for no tile
+	int xpos, ypos;  // tile offset within the image
+	int rot;
+	bool flipX;
+	
+	SourceTile(const RGBAImage *img, int x, int y, int r, bool f) : image(img), xpos(x), ypos(y), rot(r), flipX(f) {}
+	SourceTile() : image(NULL), xpos(0), ypos(0), rot(0), flipX(false) {}
+	bool valid() const {return image != NULL;}
+};
 
-// draw a "normal" block image, using three terrain tiles, and adding a bit of shadow to the N and W faces
-// ...can skip faces by passing -1
-void drawBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int Nface, int Wface, int Uface, int B)
+// iterate over a square source tile, with possible rotation and flip
+struct SourceIterator
+{
+	SourceIterator(const SourceTile& tile, int tilesize)
+		: image(*(tile.image)), faceit(tile.xpos*tilesize, tile.ypos*tilesize, tile.rot, tilesize, tile.flipX) {}
+	
+	void advance() {faceit.advance();}
+	bool end() {return faceit.end;}
+	RGBAPixel pixel() {return image(faceit.x, faceit.y);}
+
+	const RGBAImage& image;
+	RotatedFaceIterator faceit;
+};
+
+// construct a source iterator for a given terrain.png tile with rotation and/or flip
+SourceTile terrainTile(const RGBAImage& tiles, int tile, int rot, bool flipX)
+{
+	if (tile < 0)
+		return SourceTile();
+	return SourceTile(&tiles, tile%16, tile/16, rot, flipX);
+}
+
+// construct a source iterator for a terrain.png tile with no rotation/flip
+SourceTile terrainTile(const RGBAImage& tiles, int tile)
+{
+	return terrainTile(tiles, tile, 0, false);
+}
+
+
+
+// draw a normal block image, using three terrain tiles (which may be flipped/rotated/missing), and adding a bit of shadow
+//  to the N and W faces
+void drawRotatedBlockImage(RGBAImage& dest, const ImageRect& drect, const SourceTile& Nface, const SourceTile& Wface, const SourceTile& Uface, int B)
 {
 	int tilesize = 2*B;
 	// N face starts at [0,B]
-	if (Nface != -1)
+	if (Nface.valid())
 	{
-		for (FaceIterator srcit((Nface%16)*tilesize, (Nface/16)*tilesize, 0, tilesize),
-			dstit(drect.x, drect.y + B, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+		FaceIterator dstit(drect.x, drect.y + B, 1, tilesize);
+		for (SourceIterator srcit(Nface, tilesize); !srcit.end(); srcit.advance(), dstit.advance())
 		{
-			dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+			dest(dstit.x, dstit.y) = srcit.pixel();
 			darken(dest(dstit.x, dstit.y), 0.9, 0.9, 0.9);
 		}
 	}
 	// W face starts at [2B,2B]
-	if (Wface != -1)
+	if (Wface.valid())
 	{
-		for (FaceIterator srcit((Wface%16)*tilesize, (Wface/16)*tilesize, 0, tilesize),
-			dstit(drect.x + 2*B, drect.y + 2*B, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+		FaceIterator dstit(drect.x + 2*B, drect.y + 2*B, -1, tilesize);
+		for (SourceIterator srcit(Wface, tilesize); !srcit.end(); srcit.advance(), dstit.advance())
 		{
-			dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+			dest(dstit.x, dstit.y) = srcit.pixel();
 			darken(dest(dstit.x, dstit.y), 0.8, 0.8, 0.8);
 		}
 	}
 	// U face starts at [2B-1,0]
-	if (Uface != -1)
+	if (Uface.valid())
 	{
 		TopFaceIterator dstit(drect.x + 2*B-1, drect.y, tilesize);
-		for (FaceIterator srcit((Uface%16)*tilesize, (Uface/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+		for (SourceIterator srcit(Uface, tilesize); !srcit.end(); srcit.advance(), dstit.advance())
 		{
-			dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+			dest(dstit.x, dstit.y) = srcit.pixel();
 		}
 	}
 }
 
-// draw a normal block image as above, but also with rotation/flip of the source tiles
+// overload of drawRotatedBlockImage taking three terrain.png tiles
 void drawRotatedBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int Nface, int Wface, int Uface, int rotN, bool flipN, int rotW, bool flipW, int rotU, bool flipU, int B)
 {
-	int tilesize = 2*B;
-	// N face starts at [0,B]
-	if (Nface != -1)
-	{
-		FaceIterator dstit(drect.x, drect.y + B, 1, tilesize);
-		for (RotatedFaceIterator srcit((Nface%16)*tilesize, (Nface/16)*tilesize, rotN, tilesize, flipN);
-			!srcit.end; srcit.advance(), dstit.advance())
-		{
-			dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
-			darken(dest(dstit.x, dstit.y), 0.9, 0.9, 0.9);
-		}
-	}
-	// W face starts at [2B,2B]
-	if (Wface != -1)
-	{
-		FaceIterator dstit(drect.x + 2*B, drect.y + 2*B, -1, tilesize);
-		for (RotatedFaceIterator srcit((Wface%16)*tilesize, (Wface/16)*tilesize, rotW, tilesize, flipW);
-			!srcit.end; srcit.advance(), dstit.advance())
-		{
-			dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
-			darken(dest(dstit.x, dstit.y), 0.8, 0.8, 0.8);
-		}
-	}
-	// U face starts at [2B-1,0]
-	if (Uface != -1)
-	{
-		TopFaceIterator dstit(drect.x + 2*B-1, drect.y, tilesize);
-		for (RotatedFaceIterator srcit((Uface%16)*tilesize, (Uface/16)*tilesize, rotU, tilesize, flipU);
-			!srcit.end; srcit.advance(), dstit.advance())
-		{
-			dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
-		}
-	}
+	drawRotatedBlockImage(dest, drect, terrainTile(tiles, Nface, rotN, flipN), terrainTile(tiles, Wface, rotW, flipW), terrainTile(tiles, Uface, rotU, flipU), B);
+}
+
+void drawBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int Nface, int Wface, int Uface, int B)
+{
+	drawRotatedBlockImage(dest, drect, terrainTile(tiles, Nface), terrainTile(tiles, Wface), terrainTile(tiles, Uface), B);
 }
 
 // draw a block image where the block isn't full height (half-steps, snow, etc.)
@@ -451,101 +550,108 @@ void drawPartialBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAIm
 }
 
 // draw two flat copies of a tile intersecting at the block center (saplings, etc.)
-void drawItemBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B)
+void drawItemBlockImage(RGBAImage& dest, const ImageRect& drect, const SourceTile& tile, int B, bool N, bool S, bool E, bool W)
 {
-	int tilesize = 2*B;
-	int cutoff = tilesize/2;
-	// E/W face starting at [B,1.5B] -- southern half only
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
-	     dstit(drect.x + B, drect.y + B*3/2, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
-	{
-		if (dstit.pos / tilesize >= cutoff)
-			blend(dest(dstit.x, dstit.y), tiles(srcit.x, srcit.y));
-	}
-	// N/S face starting at [B,0.5B]
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
-	     dstit(drect.x + B, drect.y + B/2, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
-	{
-		blend(dest(dstit.x, dstit.y), tiles(srcit.x, srcit.y));
-	}
-	// E/W face starting at [B,1.5B] -- northern half only
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
-	     dstit(drect.x + B, drect.y + B*3/2, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
-	{
-		if (dstit.pos / tilesize < cutoff)
-			blend(dest(dstit.x, dstit.y), tiles(srcit.x, srcit.y));
-	}
-}
-
-// draw an item block image possibly missing some edges (iron bars, etc.)
-void drawPartialItemBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B, bool N, bool S, bool E, bool W)
-{
+	if (!tile.valid())
+		return;
 	int tilesize = 2*B;
 	int cutoff = tilesize/2;
 	// E/W face starting at [B,1.5B] -- southern half only
 	if (S)
 	{
-		for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
-			 dstit(drect.x + B, drect.y + B*3/2, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+		FaceIterator dstit(drect.x + B, drect.y + B*3/2, -1, tilesize);
+		for (SourceIterator srcit(tile, tilesize); !srcit.end(); srcit.advance(), dstit.advance())
 		{
 			if (dstit.pos / tilesize >= cutoff)
-				blend(dest(dstit.x, dstit.y), tiles(srcit.x, srcit.y));
+				blend(dest(dstit.x, dstit.y), srcit.pixel());
 		}
 	}
 	// N/S face starting at [B,0.5B]
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
-	     dstit(drect.x + B, drect.y + B/2, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	if (E || W)
 	{
-		if ((W && dstit.pos / tilesize >= cutoff) || (E && dstit.pos / tilesize < cutoff))
-			blend(dest(dstit.x, dstit.y), tiles(srcit.x, srcit.y));
+		FaceIterator dstit(drect.x + B, drect.y + B/2, 1, tilesize);
+		for (SourceIterator srcit(tile, tilesize); !srcit.end(); srcit.advance(), dstit.advance())
+		{
+			if ((W && dstit.pos / tilesize >= cutoff) || (E && dstit.pos / tilesize < cutoff))
+				blend(dest(dstit.x, dstit.y), srcit.pixel());
+		}
 	}
 	// E/W face starting at [B,1.5B] -- northern half only
 	if (N)
 	{
-		for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
-			 dstit(drect.x + B, drect.y + B*3/2, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+		FaceIterator dstit(drect.x + B, drect.y + B*3/2, -1, tilesize);
+		for (SourceIterator srcit(tile, tilesize); !srcit.end(); srcit.advance(), dstit.advance())
 		{
 			if (dstit.pos / tilesize < cutoff)
-				blend(dest(dstit.x, dstit.y), tiles(srcit.x, srcit.y));
+				blend(dest(dstit.x, dstit.y), srcit.pixel());
 		}
 	}
 }
 
-// draw four flat copies of a tile intersecting in a square (netherwart, etc.)
-void drawMultiItemBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B)
+void drawItemBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B)
 {
+	drawItemBlockImage(dest, drect, terrainTile(tiles, tile), B, true, true, true, true);
+}
+
+
+// draw an item block image possibly missing some edges (iron bars, etc.)
+void drawPartialItemBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int rot, bool flipX, int B, bool N, bool S, bool E, bool W)
+{
+	drawItemBlockImage(dest, drect, terrainTile(tiles, tile, rot, flipX), B, N, S, E, W);
+}
+
+// draw four flat copies of a tile intersecting in a square (netherwart, etc.)
+void drawMultiItemBlockImage(RGBAImage& dest, const ImageRect& drect, const SourceTile& tile, int B)
+{
+	if (!tile.valid())
+		return;
 	int tilesize = 2*B;
 	// E/W face starting at [0.5B,1.25B]
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
-	     dstit(drect.x + B/2, drect.y + B*5/4, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
-		blend(dest(dstit.x, dstit.y), tiles(srcit.x, srcit.y));
+		FaceIterator dstit(drect.x + B/2, drect.y + B*5/4, -1, tilesize);
+		for (SourceIterator srcit(tile, tilesize); !srcit.end(); srcit.advance(), dstit.advance())
+		{
+			blend(dest(dstit.x, dstit.y), srcit.pixel());
+		}
 	}
 	// E/W face starting at [1.5B,1.75B]
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
-	     dstit(drect.x + 3*B/2, drect.y + B*7/4, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
-		blend(dest(dstit.x, dstit.y), tiles(srcit.x, srcit.y));
+		FaceIterator dstit(drect.x + 3*B/2, drect.y + B*7/4, -1, tilesize);
+		for (SourceIterator srcit(tile, tilesize); !srcit.end(); srcit.advance(), dstit.advance())
+		{
+			blend(dest(dstit.x, dstit.y), srcit.pixel());
+		}
 	}
 	// N/S face starting at [0.5B,0.75B]
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
-	     dstit(drect.x + B/2, drect.y + B*3/4, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
-		blend(dest(dstit.x, dstit.y), tiles(srcit.x, srcit.y));
+		FaceIterator dstit(drect.x + B/2, drect.y + B*3/4, 1, tilesize);
+		for (SourceIterator srcit(tile, tilesize); !srcit.end(); srcit.advance(), dstit.advance())
+		{
+			blend(dest(dstit.x, dstit.y), srcit.pixel());
+		}
 	}
 	// N/S face starting at [1.5B,0.25B]
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
-	     dstit(drect.x + 3*B/2, drect.y + B/4, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
-		blend(dest(dstit.x, dstit.y), tiles(srcit.x, srcit.y));
+		FaceIterator dstit(drect.x + 3*B/2, drect.y + B/4, 1, tilesize);
+		for (SourceIterator srcit(tile, tilesize); !srcit.end(); srcit.advance(), dstit.advance())
+		{
+			blend(dest(dstit.x, dstit.y), srcit.pixel());
+		}
 	}
+}
+
+void drawMultiItemBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B)
+{
+	drawMultiItemBlockImage(dest, drect, terrainTile(tiles, tile), B);
 }
 
 // draw a tile on a single upright face
 // 0 = S, 1 = N, 2 = W, 3 = E
 // ...handles transparency
-void drawSingleFaceBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int face, int B)
+void drawSingleFaceBlockImage(RGBAImage& dest, const ImageRect& drect, const SourceTile& tile, int face, int B)
 {
+	if (!tile.valid())
+		return;
 	int tilesize = 2*B;
 	int xoff, yoff, deltaY;
 	if (face == 0)
@@ -572,17 +678,22 @@ void drawSingleFaceBlockImage(RGBAImage& dest, const ImageRect& drect, const RGB
 		yoff = B;
 		deltaY = -1;
 	}
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
-	     dstit(drect.x + xoff, drect.y + yoff, deltaY, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	FaceIterator dstit(drect.x + xoff, drect.y + yoff, deltaY, tilesize);
+	for (SourceIterator srcit(tile, tilesize); !srcit.end(); srcit.advance(), dstit.advance())
 	{
-		blend(dest(dstit.x, dstit.y), tiles(srcit.x, srcit.y));
+		blend(dest(dstit.x, dstit.y), srcit.pixel());
 	}
+}
+
+void drawSingleFaceBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int face, int B)
+{
+	drawSingleFaceBlockImage(dest, drect, terrainTile(tiles, tile), face, B);
 }
 
 // draw part of a tile on a single upright face
 // 0 = S, 1 = N, 2 = W, 3 = E
 // ...handles transparency
-void drawPartialSingleFaceBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int face, int B, double fstartv, double fendv, double fstarth, double fendh)
+void drawPartialSingleFaceBlockImage(RGBAImage& dest, const ImageRect& drect, const SourceTile& tile, int face, int B, double fstartv, double fendv, double fstarth, double fendh)
 {
 	int tilesize = 2*B;
 	int vstartcutoff = max(0, min(tilesize, (int)(fstartv * tilesize)));
@@ -614,29 +725,39 @@ void drawPartialSingleFaceBlockImage(RGBAImage& dest, const ImageRect& drect, co
 		yoff = B;
 		deltaY = -1;
 	}
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
-	     dstit(drect.x + xoff, drect.y + yoff, deltaY, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	FaceIterator dstit(drect.x + xoff, drect.y + yoff, deltaY, tilesize);
+	for (SourceIterator srcit(tile, tilesize); !srcit.end(); srcit.advance(), dstit.advance())
 	{
 		if (dstit.pos % tilesize >= vstartcutoff && dstit.pos % tilesize < vendcutoff &&
 		    dstit.pos / tilesize >= hstartcutoff && dstit.pos / tilesize < hendcutoff)
-			blend(dest(dstit.x, dstit.y), tiles(srcit.x, srcit.y));
+			blend(dest(dstit.x, dstit.y), srcit.pixel());
 	}
+}
+
+void drawPartialSingleFaceBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int face, int B, double fstartv, double fendv, double fstarth, double fendh)
+{
+	drawPartialSingleFaceBlockImage(dest, drect, terrainTile(tiles, tile), face, B, fstartv, fendv, fstarth, fendh);
 }
 
 // draw a single tile on the floor, possibly with rotation
 // 0 = top of tile is on S side; 1 = W, 2 = N, 3 = E
-void drawFloorBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int rot, int B)
+void drawFloorBlockImage(RGBAImage& dest, const ImageRect& drect, const SourceTile& tile, int B)
 {
 	int tilesize = 2*B;
 	TopFaceIterator dstit(drect.x + 2*B-1, drect.y + 2*B, tilesize);
-	for (RotatedFaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, rot, tilesize, false); !srcit.end; srcit.advance(), dstit.advance())
+	for (SourceIterator srcit(tile, tilesize); !srcit.end(); srcit.advance(), dstit.advance())
 	{
-		dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+		dest(dstit.x, dstit.y) = srcit.pixel();
 	}
 }
 
+void drawFloorBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int rot, int B)
+{
+	drawFloorBlockImage(dest, drect, terrainTile(tiles, tile, rot, false), B);
+}
+
 // draw part of a single tile on the floor
-void drawPartialFloorBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B, double fstartv, double fendv, double fstarth, double fendh)
+void drawPartialFloorBlockImage(RGBAImage& dest, const ImageRect& drect, const SourceTile& tile, int B, double fstartv, double fendv, double fstarth, double fendh)
 {
 	int tilesize = 2*B;
 	int vstartcutoff = max(0, min(tilesize, (int)(fstartv * tilesize)));
@@ -644,25 +765,30 @@ void drawPartialFloorBlockImage(RGBAImage& dest, const ImageRect& drect, const R
 	int hstartcutoff = max(0, min(tilesize, (int)(fstarth * tilesize)));
 	int hendcutoff = max(0, min(tilesize, (int)(fendh * tilesize)));
 	TopFaceIterator dstit(drect.x + 2*B-1, drect.y + 2*B, tilesize);
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), dstit.advance())
+	for (SourceIterator srcit(tile, tilesize); !srcit.end(); srcit.advance(), dstit.advance())
 	{
-		if (srcit.pos % tilesize >= vstartcutoff && srcit.pos % tilesize < vendcutoff &&
-		    srcit.pos / tilesize >= hstartcutoff && srcit.pos / tilesize < hendcutoff)
-			dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
+		if (dstit.pos % tilesize >= vstartcutoff && dstit.pos % tilesize < vendcutoff &&
+		    dstit.pos / tilesize >= hstartcutoff && dstit.pos / tilesize < hendcutoff)
+			dest(dstit.x, dstit.y) = srcit.pixel();
 	}
+}
+
+void drawPartialFloorBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B, double fstartv, double fendv, double fstarth, double fendh)
+{
+	drawPartialFloorBlockImage(dest, drect, terrainTile(tiles, tile), B, fstartv, fendv, fstarth, fendh);
 }
 
 // draw a single tile on the floor, possibly with rotation, angled upwards
 // rot: 0 = top of tile is on S side; 1 = W, 2 = N, 3 = E
 // up: 0 = S side of tile is highest; 1 = W, 2 = N, 3 = E
-void drawAngledFloorBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int rot, int up, int B)
+void drawAngledFloorBlockImage(RGBAImage& dest, const ImageRect& drect, const SourceTile& tile, int up, int B)
 {
 	int tilesize = 2*B;
 	TopFaceIterator dstit(drect.x + 2*B-1, drect.y + 2*B, tilesize);
-	for (RotatedFaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, rot, tilesize, false); !srcit.end; srcit.advance(), dstit.advance())
+	for (SourceIterator srcit(tile, tilesize); !srcit.end(); srcit.advance(), dstit.advance())
 	{
 		int yoff = 0;
-		int row = srcit.pos % tilesize, col = srcit.pos / tilesize;
+		int row = dstit.pos % tilesize, col = dstit.pos / tilesize;
 		if (up == 0)
 			yoff = tilesize - 1 - row;
 		else if (up == 1)
@@ -671,9 +797,14 @@ void drawAngledFloorBlockImage(RGBAImage& dest, const ImageRect& drect, const RG
 			yoff = row;
 		else if (up == 3)
 			yoff = tilesize - 1 - col;
-		blend(dest(dstit.x, dstit.y - yoff), tiles(srcit.x, srcit.y));
-		blend(dest(dstit.x, dstit.y - yoff + 1), tiles(srcit.x, srcit.y));
+		blend(dest(dstit.x, dstit.y - yoff), srcit.pixel());
+		blend(dest(dstit.x, dstit.y - yoff + 1), srcit.pixel());
 	}
+}
+
+void drawAngledFloorBlockImage(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int rot, int up, int B)
+{
+	drawAngledFloorBlockImage(dest, drect, terrainTile(tiles, tile, rot, false), up, B);
 }
 
 // draw a single tile on the ceiling, possibly with rotation
@@ -712,11 +843,11 @@ void drawSolidColorBlockImage(RGBAImage& dest, const ImageRect& drect, RGBAPixel
 }
 
 // draw S-ascending stairs
-void drawStairsS(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B)
+void drawStairsS(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tileNW, int tileU, int B)
 {
 	int tilesize = 2*B;
 	// normal N face starts at [0,B]; draw the bottom half of it
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	for (FaceIterator srcit((tileNW%16)*tilesize, (tileNW/16)*tilesize, 0, tilesize),
 	     dstit(drect.x, drect.y + B, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		if (dstit.pos % tilesize >= B)
@@ -726,7 +857,7 @@ void drawStairsS(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 		}
 	}
 	// normal W face starts at [2B,2B]; draw all but the upper-left quarter of it
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	for (FaceIterator srcit((tileNW%16)*tilesize, (tileNW/16)*tilesize, 0, tilesize),
 	     dstit(drect.x + 2*B, drect.y + 2*B, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		if (dstit.pos % tilesize >= B || dstit.pos / tilesize >= B)
@@ -737,7 +868,7 @@ void drawStairsS(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 	}
 	// normal U face starts at [2B-1,0]; draw the top half of it
 	TopFaceIterator tdstit(drect.x + 2*B-1, drect.y, tilesize);
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
+	for (FaceIterator srcit((tileU%16)*tilesize, (tileU/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
 	{
 		// if B is odd, we need B pixels from each column, but if it's even, we need to alternate between
 		//  B-1 and B+1
@@ -750,7 +881,7 @@ void drawStairsS(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 		}
 	}
 	// draw the top half of another N face at [B,B/2]
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	for (FaceIterator srcit((tileNW%16)*tilesize, (tileNW/16)*tilesize, 0, tilesize),
 	     dstit(drect.x + B, drect.y + B/2, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		// ...but if B is odd, we need to add an extra [0,1] to the even-numbered columns
@@ -765,7 +896,7 @@ void drawStairsS(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 	}
 	// draw the bottom half of another U face at [2B-1,B]
 	tdstit = TopFaceIterator(drect.x + 2*B-1, drect.y + B, tilesize);
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
+	for (FaceIterator srcit((tileU%16)*tilesize, (tileU/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
 	{
 		// again, if B is odd, take B pixels from each column; if even, take B-1 or B+1
 		int cutoff = B;
@@ -779,11 +910,11 @@ void drawStairsS(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 }
 
 // draw S-ascending stairs inverted
-void drawInvStairsS(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B)
+void drawInvStairsS(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tileNW, int tileU, int B)
 {
 	int tilesize = 2*B;
 	// draw the bottom half of a N face at [B,B/2]; do this first because the others will partially cover it
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	for (FaceIterator srcit((tileNW%16)*tilesize, (tileNW/16)*tilesize, 0, tilesize),
 	     dstit(drect.x + B, drect.y + B/2, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		// ...but if B is odd, we need to add an extra [0,1] to the even-numbered columns
@@ -797,7 +928,7 @@ void drawInvStairsS(RGBAImage& dest, const ImageRect& drect, const RGBAImage& ti
 		}
 	}
 	// normal N face starts at [0,B]; draw the top half of it
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	for (FaceIterator srcit((tileNW%16)*tilesize, (tileNW/16)*tilesize, 0, tilesize),
 	     dstit(drect.x, drect.y + B, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		if (dstit.pos % tilesize < B)
@@ -807,7 +938,7 @@ void drawInvStairsS(RGBAImage& dest, const ImageRect& drect, const RGBAImage& ti
 		}
 	}
 	// normal W face starts at [2B,2B]; draw all but the lower-left quarter of it
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	for (FaceIterator srcit((tileNW%16)*tilesize, (tileNW/16)*tilesize, 0, tilesize),
 	     dstit(drect.x + 2*B, drect.y + 2*B, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		if (dstit.pos % tilesize < B || dstit.pos / tilesize >= B)
@@ -818,19 +949,19 @@ void drawInvStairsS(RGBAImage& dest, const ImageRect& drect, const RGBAImage& ti
 	}
 	// normal U face starts at [2B-1,0]; draw the whole thing
 	TopFaceIterator tdstit(drect.x + 2*B-1, drect.y, tilesize);
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
+	for (FaceIterator srcit((tileU%16)*tilesize, (tileU/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
 	{
 		dest(tdstit.x, tdstit.y) = tiles(srcit.x, srcit.y);
 	}
 }
 
 // draw N-ascending stairs
-void drawStairsN(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B)
+void drawStairsN(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tileNW, int tileU, int B)
 {
 	int tilesize = 2*B;
 	// draw the top half of an an U face at [2B-1,B]
 	TopFaceIterator tdstit(drect.x + 2*B-1, drect.y + B, tilesize);
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
+	for (FaceIterator srcit((tileU%16)*tilesize, (tileU/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
 	{
 		// if B is odd, we need B pixels from each column, but if it's even, we need to alternate between
 		//  B-1 and B+1
@@ -844,7 +975,7 @@ void drawStairsN(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 	}
 	// draw the bottom half of the normal U face at [2B-1,0]
 	tdstit = TopFaceIterator(drect.x + 2*B-1, drect.y, tilesize);
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
+	for (FaceIterator srcit((tileU%16)*tilesize, (tileU/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
 	{
 		// again, if B is odd, take B pixels from each column; if even, take B-1 or B+1
 		int cutoff = B;
@@ -856,14 +987,14 @@ void drawStairsN(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 		}
 	}
 	// normal N face starts at [0,B]; draw it all
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	for (FaceIterator srcit((tileNW%16)*tilesize, (tileNW/16)*tilesize, 0, tilesize),
 	     dstit(drect.x, drect.y + B, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
 		darken(dest(dstit.x, dstit.y), 0.9, 0.9, 0.9);
 	}
 	// normal W face starts at [2B,2B]; draw all but the upper-right quarter of it
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	for (FaceIterator srcit((tileNW%16)*tilesize, (tileNW/16)*tilesize, 0, tilesize),
 	     dstit(drect.x + 2*B, drect.y + 2*B, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		if (dstit.pos % tilesize >= B || dstit.pos / tilesize < B)
@@ -875,24 +1006,24 @@ void drawStairsN(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 }
 
 // draw N-ascending stairs inverted
-void drawInvStairsN(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B)
+void drawInvStairsN(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tileNW, int tileU, int B)
 {
 	int tilesize = 2*B;
 	// normal U face starts at [2B-1,0]; draw the whole thing
 	TopFaceIterator tdstit(drect.x + 2*B-1, drect.y, tilesize);
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
+	for (FaceIterator srcit((tileU%16)*tilesize, (tileU/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
 	{
 		dest(tdstit.x, tdstit.y) = tiles(srcit.x, srcit.y);
 	}
 	// normal N face starts at [0,B]; draw it all
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	for (FaceIterator srcit((tileNW%16)*tilesize, (tileNW/16)*tilesize, 0, tilesize),
 	     dstit(drect.x, drect.y + B, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
 		darken(dest(dstit.x, dstit.y), 0.9, 0.9, 0.9);
 	}
 	// normal W face starts at [2B,2B]; draw all but the lower-right quarter of it
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	for (FaceIterator srcit((tileNW%16)*tilesize, (tileNW/16)*tilesize, 0, tilesize),
 	     dstit(drect.x + 2*B, drect.y + 2*B, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		if (dstit.pos % tilesize < B || dstit.pos / tilesize < B)
@@ -904,11 +1035,11 @@ void drawInvStairsN(RGBAImage& dest, const ImageRect& drect, const RGBAImage& ti
 }
 
 // draw E-ascending stairs
-void drawStairsE(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B)
+void drawStairsE(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tileNW, int tileU, int B)
 {
 	int tilesize = 2*B;
 	// normal N face starts at [0,B]; draw all but the upper-right quarter of it
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	for (FaceIterator srcit((tileNW%16)*tilesize, (tileNW/16)*tilesize, 0, tilesize),
 	     dstit(drect.x, drect.y + B, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		if (dstit.pos % tilesize >= B || dstit.pos / tilesize < B)
@@ -918,7 +1049,7 @@ void drawStairsE(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 		}
 	}
 	// normal W face starts at [2B,2B]; draw the bottom half of it
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	for (FaceIterator srcit((tileNW%16)*tilesize, (tileNW/16)*tilesize, 0, tilesize),
 	     dstit(drect.x + 2*B, drect.y + 2*B, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		if (dstit.pos % tilesize >= B)
@@ -938,7 +1069,7 @@ void drawStairsE(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 		tcutoff--;
 		textra = true;
 	}
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
+	for (FaceIterator srcit((tileU%16)*tilesize, (tileU/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
 	{
 		if (tdstit.pos < tcutoff || (textra && tdstit.pos == tcutoff + 1))
 		{
@@ -946,7 +1077,7 @@ void drawStairsE(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 		}
 	}
 	// draw the top half of another W face at [B,1.5B]
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	for (FaceIterator srcit((tileNW%16)*tilesize, (tileNW/16)*tilesize, 0, tilesize),
 	     dstit(drect.x + B, drect.y + 3*B/2, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		// ...but if B is odd, we need to add an extra [0,1] to the odd-numbered columns
@@ -969,7 +1100,7 @@ void drawStairsE(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 		tcutoff++;
 		textra = true;
 	}
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
+	for (FaceIterator srcit((tileU%16)*tilesize, (tileU/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
 	{
 		if (tdstit.pos >= tcutoff || (textra && tdstit.pos == tcutoff - 2))
 		{
@@ -979,11 +1110,11 @@ void drawStairsE(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 }
 
 // draw E-ascending stairs inverted
-void drawInvStairsE(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B)
+void drawInvStairsE(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tileNW, int tileU, int B)
 {
 	int tilesize = 2*B;
 	// draw the bottom half of a W face at [B,1.5B]; do this first because the others will partially cover it
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	for (FaceIterator srcit((tileNW%16)*tilesize, (tileNW/16)*tilesize, 0, tilesize),
 	     dstit(drect.x + B, drect.y + 3*B/2, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		// ...but if B is odd, we need to add an extra [0,1] to the odd-numbered columns
@@ -997,7 +1128,7 @@ void drawInvStairsE(RGBAImage& dest, const ImageRect& drect, const RGBAImage& ti
 		}
 	}
 	// normal W face starts at [2B,2B]; draw the top half of it
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	for (FaceIterator srcit((tileNW%16)*tilesize, (tileNW/16)*tilesize, 0, tilesize),
 	     dstit(drect.x + 2*B, drect.y + 2*B, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		if (dstit.pos % tilesize < B)
@@ -1007,7 +1138,7 @@ void drawInvStairsE(RGBAImage& dest, const ImageRect& drect, const RGBAImage& ti
 		}
 	}
 	// normal N face starts at [0,B]; draw all but the lower-right quarter of it
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	for (FaceIterator srcit((tileNW%16)*tilesize, (tileNW/16)*tilesize, 0, tilesize),
 	     dstit(drect.x, drect.y + B, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		if (dstit.pos % tilesize < B || dstit.pos / tilesize < B)
@@ -1018,14 +1149,14 @@ void drawInvStairsE(RGBAImage& dest, const ImageRect& drect, const RGBAImage& ti
 	}
 	// normal U face starts at [2B-1,0]; draw the whole thing
 	TopFaceIterator tdstit(drect.x + 2*B-1, drect.y, tilesize);
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
+	for (FaceIterator srcit((tileU%16)*tilesize, (tileU/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
 	{
 		dest(tdstit.x, tdstit.y) = tiles(srcit.x, srcit.y);
 	}
 }
 
 // draw W-ascending stairs
-void drawStairsW(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B)
+void drawStairsW(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tileNW, int tileU, int B)
 {
 	int tilesize = 2*B;
 	// draw the left half of an U face at [2B-1,B]
@@ -1039,7 +1170,7 @@ void drawStairsW(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 		tcutoff--;
 		textra = true;
 	}
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
+	for (FaceIterator srcit((tileU%16)*tilesize, (tileU/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
 	{
 		if (tdstit.pos < tcutoff || (textra && tdstit.pos == tcutoff + 1))
 		{
@@ -1056,7 +1187,7 @@ void drawStairsW(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 		tcutoff++;
 		textra = true;
 	}
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
+	for (FaceIterator srcit((tileU%16)*tilesize, (tileU/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
 	{
 		if (tdstit.pos >= tcutoff || (textra && tdstit.pos == tcutoff - 2))
 		{
@@ -1064,7 +1195,7 @@ void drawStairsW(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 		}
 	}
 	// normal N face starts at [0,B]; draw all but the upper-left quarter of it
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	for (FaceIterator srcit((tileNW%16)*tilesize, (tileNW/16)*tilesize, 0, tilesize),
 	     dstit(drect.x, drect.y + B, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		if (dstit.pos % tilesize >= B || dstit.pos / tilesize >= B)
@@ -1074,7 +1205,7 @@ void drawStairsW(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 		}
 	}
 	// normal W face starts at [2B,2B]; draw the whole thing
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	for (FaceIterator srcit((tileNW%16)*tilesize, (tileNW/16)*tilesize, 0, tilesize),
 	     dstit(drect.x + 2*B, drect.y + 2*B, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
@@ -1083,24 +1214,24 @@ void drawStairsW(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles
 }
 
 // draw W-ascending stairs inverted
-void drawInvStairsW(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tile, int B)
+void drawInvStairsW(RGBAImage& dest, const ImageRect& drect, const RGBAImage& tiles, int tileNW, int tileU, int B)
 {
 	int tilesize = 2*B;
 	// normal U face starts at [2B-1,0]; draw the whole thing
 	TopFaceIterator tdstit(drect.x + 2*B-1, drect.y, tilesize);
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
+	for (FaceIterator srcit((tileU%16)*tilesize, (tileU/16)*tilesize, 0, tilesize); !srcit.end; srcit.advance(), tdstit.advance())
 	{
 		dest(tdstit.x, tdstit.y) = tiles(srcit.x, srcit.y);
 	}
 	// normal W face starts at [2B,2B]; draw the whole thing
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	for (FaceIterator srcit((tileNW%16)*tilesize, (tileNW/16)*tilesize, 0, tilesize),
 	     dstit(drect.x + 2*B, drect.y + 2*B, -1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		dest(dstit.x, dstit.y) = tiles(srcit.x, srcit.y);
 		darken(dest(dstit.x, dstit.y), 0.8, 0.8, 0.8);
 	}
 	// normal N face starts at [0,B]; draw all but the lower-left quarter of it
-	for (FaceIterator srcit((tile%16)*tilesize, (tile/16)*tilesize, 0, tilesize),
+	for (FaceIterator srcit((tileNW%16)*tilesize, (tileNW/16)*tilesize, 0, tilesize),
 	     dstit(drect.x, drect.y + B, 1, tilesize); !srcit.end; srcit.advance(), dstit.advance())
 	{
 		if (dstit.pos % tilesize < B || dstit.pos / tilesize >= B)
@@ -1377,7 +1508,7 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(11, 4)] = 18;
 	blockOffsets[offsetIdx(11, 2)] = 17;
 	setOffsetsForID(12, 20, *this);
-	setOffsetsForID(13, 21, *this);
+	setOffsetsForID(13, 483, *this);
 	setOffsetsForID(14, 22, *this);
 	setOffsetsForID(15, 23, *this);
 	setOffsetsForID(16, 24, *this);
@@ -1385,6 +1516,14 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(17, 1)] = 219;
 	blockOffsets[offsetIdx(17, 2)] = 220;
 	blockOffsets[offsetIdx(17, 3)] = 427;
+	blockOffsets[offsetIdx(17, 4)] = 532;
+	blockOffsets[offsetIdx(17, 5)] = 534;
+	blockOffsets[offsetIdx(17, 6)] = 536;
+	blockOffsets[offsetIdx(17, 7)] = 538;
+	blockOffsets[offsetIdx(17, 8)] = 531;
+	blockOffsets[offsetIdx(17, 9)] = 533;
+	blockOffsets[offsetIdx(17, 10)] = 535;
+	blockOffsets[offsetIdx(17, 11)] = 537;
 	setOffsetsForID(18, 26, *this);
 	blockOffsets[offsetIdx(18, 1)] = 248;
 	blockOffsets[offsetIdx(18, 5)] = 248;
@@ -1530,10 +1669,10 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(53, 5)] = 439;
 	blockOffsets[offsetIdx(53, 6)] = 440;
 	blockOffsets[offsetIdx(53, 7)] = 441;
-	setOffsetsForID(54, 54, *this);
-	blockOffsets[offsetIdx(54, 4)] = 177;
-	blockOffsets[offsetIdx(54, 2)] = 297;
-	blockOffsets[offsetIdx(54, 5)] = 297;
+	setOffsetsForID(54, 484, *this);
+	blockOffsets[offsetIdx(54, 4)] = 485;
+	blockOffsets[offsetIdx(54, 2)] = 486;
+	blockOffsets[offsetIdx(54, 5)] = 486;
 	setOffsetsForID(55, 55, *this);
 	setOffsetsForID(56, 56, *this);
 	setOffsetsForID(57, 57, *this);
@@ -1806,6 +1945,73 @@ void BlockImages::setOffsets()
 	blockOffsets[offsetIdx(126, 9)] = 465;
 	blockOffsets[offsetIdx(126, 10)] = 467;
 	blockOffsets[offsetIdx(126, 11)] = 469;
+	setOffsetsForID(127, 522, *this);
+	blockOffsets[offsetIdx(127, 1)] = 519;
+	blockOffsets[offsetIdx(127, 2)] = 521;
+	blockOffsets[offsetIdx(127, 3)] = 520;
+	blockOffsets[offsetIdx(127, 4)] = 526;
+	blockOffsets[offsetIdx(127, 5)] = 523;
+	blockOffsets[offsetIdx(127, 6)] = 525;
+	blockOffsets[offsetIdx(127, 7)] = 524;
+	blockOffsets[offsetIdx(127, 8)] = 530;
+	blockOffsets[offsetIdx(127, 9)] = 527;
+	blockOffsets[offsetIdx(127, 10)] = 529;
+	blockOffsets[offsetIdx(127, 11)] = 528;
+	setOffsetsForID(128, 470, *this);
+	blockOffsets[offsetIdx(128, 1)] = 471;
+	blockOffsets[offsetIdx(128, 2)] = 472;
+	blockOffsets[offsetIdx(128, 3)] = 473;
+	blockOffsets[offsetIdx(128, 4)] = 474;
+	blockOffsets[offsetIdx(128, 5)] = 475;
+	blockOffsets[offsetIdx(128, 6)] = 476;
+	blockOffsets[offsetIdx(128, 7)] = 477;
+	setOffsetsForID(129, 478, *this);
+	setOffsetsForID(130, 479, *this);
+	blockOffsets[offsetIdx(130, 4)] = 480;
+	blockOffsets[offsetIdx(130, 2)] = 481;
+	blockOffsets[offsetIdx(130, 5)] = 481;
+	blockOffsets[offsetIdx(131, 0)] = 542;
+	blockOffsets[offsetIdx(131, 4)] = 542;
+	blockOffsets[offsetIdx(131, 8)] = 542;
+	blockOffsets[offsetIdx(131, 12)] = 542;
+	blockOffsets[offsetIdx(131, 1)] = 539;
+	blockOffsets[offsetIdx(131, 5)] = 539;
+	blockOffsets[offsetIdx(131, 9)] = 539;
+	blockOffsets[offsetIdx(131, 13)] = 539;
+	blockOffsets[offsetIdx(131, 2)] = 541;
+	blockOffsets[offsetIdx(131, 6)] = 541;
+	blockOffsets[offsetIdx(131, 10)] = 541;
+	blockOffsets[offsetIdx(131, 14)] = 541;
+	blockOffsets[offsetIdx(131, 3)] = 540;
+	blockOffsets[offsetIdx(131, 7)] = 540;
+	blockOffsets[offsetIdx(131, 11)] = 540;
+	blockOffsets[offsetIdx(131, 15)] = 540;
+	setOffsetsForID(132, 543, *this);
+	setOffsetsForID(133, 482, *this);
+	setOffsetsForID(134, 495, *this);
+	blockOffsets[offsetIdx(134, 1)] = 496;
+	blockOffsets[offsetIdx(134, 2)] = 497;
+	blockOffsets[offsetIdx(134, 3)] = 498;
+	blockOffsets[offsetIdx(134, 4)] = 499;
+	blockOffsets[offsetIdx(134, 5)] = 500;
+	blockOffsets[offsetIdx(134, 6)] = 501;
+	blockOffsets[offsetIdx(134, 7)] = 502;
+	setOffsetsForID(135, 503, *this);
+	blockOffsets[offsetIdx(135, 1)] = 504;
+	blockOffsets[offsetIdx(135, 2)] = 505;
+	blockOffsets[offsetIdx(135, 3)] = 506;
+	blockOffsets[offsetIdx(135, 4)] = 507;
+	blockOffsets[offsetIdx(135, 5)] = 508;
+	blockOffsets[offsetIdx(135, 6)] = 509;
+	blockOffsets[offsetIdx(135, 7)] = 510;
+	setOffsetsForID(136, 511, *this);
+	blockOffsets[offsetIdx(136, 1)] = 512;
+	blockOffsets[offsetIdx(136, 2)] = 513;
+	blockOffsets[offsetIdx(136, 3)] = 514;
+	blockOffsets[offsetIdx(136, 4)] = 515;
+	blockOffsets[offsetIdx(136, 5)] = 516;
+	blockOffsets[offsetIdx(136, 6)] = 517;
+	blockOffsets[offsetIdx(136, 7)] = 518;
 }
 
 void BlockImages::checkOpacityAndTransparency(int B)
@@ -1910,7 +2116,7 @@ int deinterpolate(int targetj, int srcrange, int destrange)
 	return destrange - 1;
 }
 
-bool BlockImages::construct(int B, const string& terrainfile, const string& firefile, const string& endportalfile)
+bool BlockImages::construct(int B, const string& terrainfile, const string& firefile, const string& endportalfile, const string& chestfile, const string& largechestfile, const string& enderchestfile)
 {
 	if (B < 2)
 		return false;
@@ -1943,6 +2149,33 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	RGBAImage endportaltile;
 	endportaltile.create(2*B, 2*B);
 	resize(endportal, ImageRect(0, 0, endportal.w, endportal.h), endportaltile, ImageRect(0, 0, 2*B, 2*B));
+	
+	// read chest.png, make sure it's okay, and build resized tiles
+	RGBAImage chest;
+	if (!chest.readPNG(chestfile))
+		return false;
+	if (chest.w % 64 != 0 || chest.h != chest.w)
+		return false;
+	int chestScale = chest.w / 64;
+	RGBAImage chesttiles = getResizedChest(chest, chestScale, B);
+
+	// read enderchest.png, make sure it's okay, and build resized tiles
+	RGBAImage enderchest;
+	if (!enderchest.readPNG(enderchestfile))
+		return false;
+	if (enderchest.w % 64 != 0 || enderchest.h != enderchest.w)
+		return false;
+	int enderchestScale = enderchest.w / 64;
+	RGBAImage enderchesttiles = getResizedChest(enderchest, enderchestScale, B);
+	
+	// read largechest.png, make sure it's okay, and build resized tiles
+	RGBAImage largechest;
+	if (!largechest.readPNG(largechestfile))
+		return false;
+	if (largechest.w % 128 != 0 || largechest.h != largechest.w / 2)
+		return false;
+	int largechestScale = largechest.w / 128;
+	RGBAImage largechesttiles = getResizedLargeChest(largechest, largechestScale, B);
 
 	// colorize various tiles
 	darken(tiles, ImageRect(0, 0, 2*B, 2*B), 0.6, 0.95, 0.3);  // tile 0 = grass top
@@ -2033,7 +2266,7 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawBlockImage(img, getRect(179), tiles, -1, 205, 205, B);  // water missing N
 	drawBlockImage(img, getRect(16), tiles, 237, 237, 237, B);  // full lava
 	drawBlockImage(img, getRect(20), tiles, 18, 18, 18, B);  // sand
-	drawBlockImage(img, getRect(21), tiles, 19, 19, 19, B);  // gravel
+	drawBlockImage(img, getRect(483), tiles, 19, 19, 19, B);  // gravel
 	drawBlockImage(img, getRect(22), tiles, 32, 32, 32, B);  // gold ore
 	drawBlockImage(img, getRect(23), tiles, 33, 33, 33, B);  // iron ore
 	drawBlockImage(img, getRect(24), tiles, 34, 34, 34, B);  // coal ore
@@ -2072,14 +2305,18 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawBlockImage(img, getRect(41), tiles, 36, 36, 36, B);  // mossy cobblestone
 	drawBlockImage(img, getRect(42), tiles, 37, 37, 37, B);  // obsidian
 	drawBlockImage(img, getRect(49), tiles, 65, 65, 65, B);  // spawner
-	drawBlockImage(img, getRect(54), tiles, 26, 27, 25, B);  // chest facing W
-	drawBlockImage(img, getRect(177), tiles, 27, 26, 25, B);  // chest facing N
-	drawBlockImage(img, getRect(173), tiles, 26, 41, 25, B);  // double chest N facing W
-	drawBlockImage(img, getRect(174), tiles, 26, 42, 25, B);  // double chest S facing W
-	drawBlockImage(img, getRect(175), tiles, 41, 26, 25, B);  // double chest E facing N
-	drawBlockImage(img, getRect(176), tiles, 42, 26, 25, B);  // double chest W facing N
-	drawBlockImage(img, getRect(270), tiles, 26, 27, 25, B);  // locked chest facing W
-	drawBlockImage(img, getRect(271), tiles, 27, 26, 25, B);  // locked chest facing N
+	drawBlockImage(img, getRect(484), chesttiles, 2, 1, 0, B);  // chest facing W
+	drawBlockImage(img, getRect(485), chesttiles, 1, 2, 0, B);  // chest facing N
+	drawBlockImage(img, getRect(486), chesttiles, 2, 2, 0, B);  // chest facing E/S
+	drawBlockImage(img, getRect(479), enderchesttiles, 2, 1, 0, B);  // ender chest facing W
+	drawBlockImage(img, getRect(480), enderchesttiles, 1, 2, 0, B);  // ender chest facing N
+	drawBlockImage(img, getRect(481), enderchesttiles, 2, 2, 0, B);  // ender chest facing E/S
+	drawBlockImage(img, getRect(489), largechesttiles, 2, 6, 0, B);  // double chest E facing N
+	drawBlockImage(img, getRect(490), largechesttiles, 3, 6, 1, B);  // double chest W facing N
+	drawBlockImage(img, getRect(493), largechesttiles, 4, 6, 0, B);  // double chest E facing S
+	drawBlockImage(img, getRect(494), largechesttiles, 5, 6, 1, B);  // double chest W facing S
+	drawBlockImage(img, getRect(270), chesttiles, 2, 1, 0, B);  // locked chest facing W
+	drawBlockImage(img, getRect(271), chesttiles, 1, 2, 0, B);  // locked chest facing N
 	drawBlockImage(img, getRect(56), tiles, 50, 50, 50, B);  // diamond ore
 	drawBlockImage(img, getRect(57), tiles, 24, 24, 24, B);  // diamond block
 	drawBlockImage(img, getRect(58), tiles, 59, 60, 43, B);  // workbench
@@ -2125,11 +2362,6 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawBlockImage(img, getRect(295), tiles, 100, 100, 100, B);  // mossy stone brick
 	drawBlockImage(img, getRect(296), tiles, 101, 101, 101, B);  // cracked stone brick
 	drawBlockImage(img, getRect(430), tiles, 213, 213, 213, B);  // circle stone brick
-	drawBlockImage(img, getRect(297), tiles, 26, 26, 25, B);  // chest facing E/S
-	drawBlockImage(img, getRect(298), tiles, 26, 57, 25, B);  // double chest N facing E
-	drawBlockImage(img, getRect(299), tiles, 26, 58, 25, B);  // double chest S facing E
-	drawBlockImage(img, getRect(300), tiles, 57, 26, 25, B);  // double chest E facing S
-	drawBlockImage(img, getRect(301), tiles, 58, 26, 25, B);  // double chest W facing S
 	drawBlockImage(img, getRect(336), tiles, 142, 142, 142, B);  // mushroom flesh
 	drawBlockImage(img, getRect(337), tiles, 142, 142, 125, B);  // red cap top only
 	drawBlockImage(img, getRect(338), tiles, 125, 142, 125, B);  // red cap N
@@ -2142,6 +2374,8 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawBlockImage(img, getRect(345), tiles, 141, 141, 142, B);  // mushroom stem
 	drawBlockImage(img, getRect(433), tiles, 212, 212, 212, B);  // redstone lamp on
 	drawBlockImage(img, getRect(434), tiles, 211, 211, 211, B);  // redstone lamp off
+	drawBlockImage(img, getRect(478), tiles, 171, 171, 171, B);  // emerald ore
+	drawBlockImage(img, getRect(482), tiles, 25, 25, 25, B);  // emerald block
 	drawRotatedBlockImage(img, getRect(407), tiles, 108, 108, 109, 2, false, 2, false, 0, false, B);  // closed piston D
 	drawRotatedBlockImage(img, getRect(408), tiles, 108, 108, 107, 0, false, 0, false, 0, false, B);  // closed piston U
 	drawRotatedBlockImage(img, getRect(409), tiles, 107, 108, 108, 0, false, 1, false, 2, false, B);  // closed piston N
@@ -2154,6 +2388,18 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawRotatedBlockImage(img, getRect(416), tiles, 109, 108, 108, 0, false, 3, false, 0, false, B);  // closed sticky piston S
 	drawRotatedBlockImage(img, getRect(417), tiles, 108, 106, 108, 3, false, 0, false, 3, false, B);  // closed sticky piston W
 	drawRotatedBlockImage(img, getRect(418), tiles, 108, 109, 108, 1, false, 0, false, 1, false, B);  // closed sticky piston E
+	drawRotatedBlockImage(img, getRect(487), largechesttiles, 6, 2, 0, 0, false, 0, false, 1, false, B);  // double chest N facing W
+	drawRotatedBlockImage(img, getRect(488), largechesttiles, 6, 3, 1, 0, false, 0, false, 1, false, B);  // double chest S facing W
+	drawRotatedBlockImage(img, getRect(491), largechesttiles, 6, 4, 0, 0, false, 0, false, 1, false, B);  // double chest N facing E
+	drawRotatedBlockImage(img, getRect(492), largechesttiles, 6, 5, 1, 0, false, 0, false, 1, false, B);  // double chest S facing E
+	drawRotatedBlockImage(img, getRect(531), tiles, 20, 21, 20, 1, false, 0, false, 1, false, B);  // log EW
+	drawRotatedBlockImage(img, getRect(532), tiles, 21, 20, 20, 0, false, 3, false, 0, false, B);  // log NS
+	drawRotatedBlockImage(img, getRect(533), tiles, 116, 21, 116, 1, false, 0, false, 1, false, B);  // pine log EW
+	drawRotatedBlockImage(img, getRect(534), tiles, 21, 116, 116, 0, false, 3, false, 0, false, B);  // pine log NS
+	drawRotatedBlockImage(img, getRect(535), tiles, 117, 21, 117, 1, false, 0, false, 1, false, B);  // birch log EW
+	drawRotatedBlockImage(img, getRect(536), tiles, 21, 117, 117, 0, false, 3, false, 0, false, B);  // birch log NS
+	drawRotatedBlockImage(img, getRect(537), tiles, 153, 21, 153, 1, false, 0, false, 1, false, B);  // jungle log EW
+	drawRotatedBlockImage(img, getRect(538), tiles, 21, 153, 153, 0, false, 3, false, 0, false, B);  // jungle log NS
 
 	drawPartialBlockImage(img, getRect(9), tiles, 205, 205, 205, B, CUTOFF_2_16, 0, 0, 0, true);  // water level 7
 	drawPartialBlockImage(img, getRect(10), tiles, 205, 205, 205, B, CUTOFF_4_16, 0, 0, 0, true);  // water level 6
@@ -2227,35 +2473,35 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawMultiItemBlockImage(img, getRect(334), tiles, 227, B);  // netherwart medium
 	drawMultiItemBlockImage(img, getRect(335), tiles, 228, B);  // netherwart large
 	drawItemBlockImage(img, getRect(355), tiles, 85, B);  // iron bars NSEW
-	drawPartialItemBlockImage(img, getRect(356), tiles, 85, B, true, true, false, false);  // iron bars NS
-	drawPartialItemBlockImage(img, getRect(357), tiles, 85, B, true, false, true, false);  // iron bars NE
-	drawPartialItemBlockImage(img, getRect(358), tiles, 85, B, true, false, false, true);  // iron bars NW
-	drawPartialItemBlockImage(img, getRect(359), tiles, 85, B, false, true, true, false);  // iron bars SE
-	drawPartialItemBlockImage(img, getRect(360), tiles, 85, B, false, true, false, true);  // iron bars SW
-	drawPartialItemBlockImage(img, getRect(361), tiles, 85, B, false, false, true, true);  // iron bars EW
-	drawPartialItemBlockImage(img, getRect(362), tiles, 85, B, false, true, true, true);  // iron bars SEW
-	drawPartialItemBlockImage(img, getRect(363), tiles, 85, B, true, false, true, true);  // iron bars NEW
-	drawPartialItemBlockImage(img, getRect(364), tiles, 85, B, true, true, false, true);  // iron bars NSW
-	drawPartialItemBlockImage(img, getRect(365), tiles, 85, B, true, true, true, false);  // iron bars NSE
-	drawPartialItemBlockImage(img, getRect(419), tiles, 85, B, true, false, false, false);  // iron bars N
-	drawPartialItemBlockImage(img, getRect(420), tiles, 85, B, false, true, false, false);  // iron bars S
-	drawPartialItemBlockImage(img, getRect(421), tiles, 85, B, false, false, true, false);  // iron bars E
-	drawPartialItemBlockImage(img, getRect(422), tiles, 85, B, false, false, false, true);  // iron bars W
+	drawPartialItemBlockImage(img, getRect(356), tiles, 85, 0, false, B, true, true, false, false);  // iron bars NS
+	drawPartialItemBlockImage(img, getRect(357), tiles, 85, 0, false, B, true, false, true, false);  // iron bars NE
+	drawPartialItemBlockImage(img, getRect(358), tiles, 85, 0, false, B, true, false, false, true);  // iron bars NW
+	drawPartialItemBlockImage(img, getRect(359), tiles, 85, 0, false, B, false, true, true, false);  // iron bars SE
+	drawPartialItemBlockImage(img, getRect(360), tiles, 85, 0, false, B, false, true, false, true);  // iron bars SW
+	drawPartialItemBlockImage(img, getRect(361), tiles, 85, 0, false, B, false, false, true, true);  // iron bars EW
+	drawPartialItemBlockImage(img, getRect(362), tiles, 85, 0, false, B, false, true, true, true);  // iron bars SEW
+	drawPartialItemBlockImage(img, getRect(363), tiles, 85, 0, false, B, true, false, true, true);  // iron bars NEW
+	drawPartialItemBlockImage(img, getRect(364), tiles, 85, 0, false, B, true, true, false, true);  // iron bars NSW
+	drawPartialItemBlockImage(img, getRect(365), tiles, 85, 0, false, B, true, true, true, false);  // iron bars NSE
+	drawPartialItemBlockImage(img, getRect(419), tiles, 85, 0, false, B, true, false, false, false);  // iron bars N
+	drawPartialItemBlockImage(img, getRect(420), tiles, 85, 0, false, B, false, true, false, false);  // iron bars S
+	drawPartialItemBlockImage(img, getRect(421), tiles, 85, 0, false, B, false, false, true, false);  // iron bars E
+	drawPartialItemBlockImage(img, getRect(422), tiles, 85, 0, false, B, false, false, false, true);  // iron bars W
 	drawItemBlockImage(img, getRect(366), tiles, 49, B);  // glass pane NSEW
-	drawPartialItemBlockImage(img, getRect(367), tiles, 49, B, true, true, false, false);  // glass pane NS
-	drawPartialItemBlockImage(img, getRect(368), tiles, 49, B, true, false, true, false);  // glass pane NE
-	drawPartialItemBlockImage(img, getRect(369), tiles, 49, B, true, false, false, true);  // glass pane NW
-	drawPartialItemBlockImage(img, getRect(370), tiles, 49, B, false, true, true, false);  // glass pane SE
-	drawPartialItemBlockImage(img, getRect(371), tiles, 49, B, false, true, false, true);  // glass pane SW
-	drawPartialItemBlockImage(img, getRect(372), tiles, 49, B, false, false, true, true);  // glass pane EW
-	drawPartialItemBlockImage(img, getRect(373), tiles, 49, B, false, true, true, true);  // glass pane SEW
-	drawPartialItemBlockImage(img, getRect(374), tiles, 49, B, true, false, true, true);  // glass pane NEW
-	drawPartialItemBlockImage(img, getRect(375), tiles, 49, B, true, true, false, true);  // glass pane NSW
-	drawPartialItemBlockImage(img, getRect(376), tiles, 49, B, true, true, true, false);  // glass pane NSE
-	drawPartialItemBlockImage(img, getRect(423), tiles, 49, B, true, false, false, false);  // glass pane N
-	drawPartialItemBlockImage(img, getRect(424), tiles, 49, B, false, true, false, false);  // glass pane S
-	drawPartialItemBlockImage(img, getRect(425), tiles, 49, B, false, false, true, false);  // glass pane E
-	drawPartialItemBlockImage(img, getRect(426), tiles, 49, B, false, false, false, true);  // glass pane W
+	drawPartialItemBlockImage(img, getRect(367), tiles, 49, 0, false, B, true, true, false, false);  // glass pane NS
+	drawPartialItemBlockImage(img, getRect(368), tiles, 49, 0, false, B, true, false, true, false);  // glass pane NE
+	drawPartialItemBlockImage(img, getRect(369), tiles, 49, 0, false, B, true, false, false, true);  // glass pane NW
+	drawPartialItemBlockImage(img, getRect(370), tiles, 49, 0, false, B, false, true, true, false);  // glass pane SE
+	drawPartialItemBlockImage(img, getRect(371), tiles, 49, 0, false, B, false, true, false, true);  // glass pane SW
+	drawPartialItemBlockImage(img, getRect(372), tiles, 49, 0, false, B, false, false, true, true);  // glass pane EW
+	drawPartialItemBlockImage(img, getRect(373), tiles, 49, 0, false, B, false, true, true, true);  // glass pane SEW
+	drawPartialItemBlockImage(img, getRect(374), tiles, 49, 0, false, B, true, false, true, true);  // glass pane NEW
+	drawPartialItemBlockImage(img, getRect(375), tiles, 49, 0, false, B, true, true, false, true);  // glass pane NSW
+	drawPartialItemBlockImage(img, getRect(376), tiles, 49, 0, false, B, true, true, true, false);  // glass pane NSE
+	drawPartialItemBlockImage(img, getRect(423), tiles, 49, 0, false, B, true, false, false, false);  // glass pane N
+	drawPartialItemBlockImage(img, getRect(424), tiles, 49, 0, false, B, false, true, false, false);  // glass pane S
+	drawPartialItemBlockImage(img, getRect(425), tiles, 49, 0, false, B, false, false, true, false);  // glass pane E
+	drawPartialItemBlockImage(img, getRect(426), tiles, 49, 0, false, B, false, false, false, true);  // glass pane W
 	drawItemBlockImage(img, getRect(395), stemtiles, 0, B);  // stem level 0
 	drawItemBlockImage(img, getRect(396), stemtiles, 1, B);  // stem level 1
 	drawItemBlockImage(img, getRect(397), stemtiles, 2, B);  // stem level 2
@@ -2264,10 +2510,33 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawItemBlockImage(img, getRect(400), stemtiles, 5, B);  // stem level 5
 	drawItemBlockImage(img, getRect(401), stemtiles, 6, B);  // stem level 6
 	drawItemBlockImage(img, getRect(402), stemtiles, 7, B);  // stem level 7
-	drawPartialItemBlockImage(img, getRect(403), stemtiles, 8, B, true, true, false, false);  // stem pointing N
-	drawPartialItemBlockImage(img, getRect(404), stemtiles, 9, B, true, true, false, false);  // stem pointing S
-	drawPartialItemBlockImage(img, getRect(405), stemtiles, 8, B, false, false, true, true);  // stem pointing E
-	drawPartialItemBlockImage(img, getRect(406), stemtiles, 9, B, false, false, true, true);  // stem pointing W
+	drawPartialItemBlockImage(img, getRect(403), stemtiles, 8, 0, false, B, true, true, false, false);  // stem pointing N
+	drawPartialItemBlockImage(img, getRect(404), stemtiles, 9, 0, false, B, true, true, false, false);  // stem pointing S
+	drawPartialItemBlockImage(img, getRect(405), stemtiles, 8, 0, false, B, false, false, true, true);  // stem pointing E
+	drawPartialItemBlockImage(img, getRect(406), stemtiles, 9, 0, false, B, false, false, true, true);  // stem pointing W
+	drawPartialItemBlockImage(img, getRect(519), tiles, 170, 0, true, B, true, false, false, false);  // cocoa level 0 stem N
+	drawPartialItemBlockImage(img, getRect(520), tiles, 170, 0, false, B, false, true, false, false);  // cocoa level 0 stem S
+	drawPartialItemBlockImage(img, getRect(521), tiles, 170, 0, true, B, false, false, true, false);  // cocoa level 0 stem E
+	drawPartialItemBlockImage(img, getRect(522), tiles, 170, 0, false, B, false, false, false, true);  // cocoa level 0 stem W
+	drawPartialItemBlockImage(img, getRect(523), tiles, 169, 0, true, B, true, false, false, false);  // cocoa level 1 stem N
+	drawPartialItemBlockImage(img, getRect(524), tiles, 169, 0, false, B, false, true, false, false);  // cocoa level 1 stem S
+	drawPartialItemBlockImage(img, getRect(525), tiles, 169, 0, true, B, false, false, true, false);  // cocoa level 1 stem E
+	drawPartialItemBlockImage(img, getRect(526), tiles, 169, 0, false, B, false, false, false, true);  // cocoa level 1 stem W
+	drawPartialItemBlockImage(img, getRect(527), tiles, 168, 0, true, B, true, false, false, false);  // cocoa level 2 stem N
+	drawPartialItemBlockImage(img, getRect(528), tiles, 168, 0, false, B, false, true, false, false);  // cocoa level 2 stem S
+	drawPartialItemBlockImage(img, getRect(529), tiles, 168, 0, true, B, false, false, true, false);  // cocoa level 2 stem E
+	drawPartialItemBlockImage(img, getRect(530), tiles, 168, 0, false, B, false, false, false, true);  // cocoa level 2 stem W
+	drawPartialItemBlockImage(img, getRect(543), tiles, 173, 2, false, B, true, true, true, true);  // tripwire NSEW
+	drawPartialItemBlockImage(img, getRect(544), tiles, 173, 2, false, B, true, true, false, false);  // tripwire NS
+	drawPartialItemBlockImage(img, getRect(545), tiles, 173, 2, false, B, true, false, true, false);  // tripwire NE
+	drawPartialItemBlockImage(img, getRect(546), tiles, 173, 2, false, B, true, false, false, true);  // tripwire NW
+	drawPartialItemBlockImage(img, getRect(547), tiles, 173, 2, false, B, false, true, true, false);  // tripwire SE
+	drawPartialItemBlockImage(img, getRect(548), tiles, 173, 2, false, B, false, true, false, true);  // tripwire SW
+	drawPartialItemBlockImage(img, getRect(549), tiles, 173, 2, false, B, false, false, true, true);  // tripwire EW
+	drawPartialItemBlockImage(img, getRect(550), tiles, 173, 2, false, B, false, true, true, true);  // tripwire SEW
+	drawPartialItemBlockImage(img, getRect(551), tiles, 173, 2, false, B, true, false, true, true);  // tripwire NEW
+	drawPartialItemBlockImage(img, getRect(552), tiles, 173, 2, false, B, true, true, false, true);  // tripwire NSW
+	drawPartialItemBlockImage(img, getRect(553), tiles, 173, 2, false, B, true, true, true, false);  // tripwire NSE
 
 	drawSingleFaceBlockImage(img, getRect(44), tiles, 80, 1, B);  // torch pointing S
 	drawSingleFaceBlockImage(img, getRect(45), tiles, 80, 0, B);  // torch pointing N
@@ -2305,6 +2574,10 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 	drawSingleFaceBlockImage(img, getRect(278), tiles, 84, 3, B);  // trapdoor open E
 	drawSingleFaceBlockImage(img, getRect(279), tiles, 84, 0, B);  // trapdoor open S
 	drawSingleFaceBlockImage(img, getRect(280), tiles, 84, 1, B);  // trapdoor open N
+	drawSingleFaceBlockImage(img, getRect(539), tiles, 172, 0, B);  // tripwire hook S
+	drawSingleFaceBlockImage(img, getRect(540), tiles, 172, 1, B);  // tripwire hook N
+	drawSingleFaceBlockImage(img, getRect(541), tiles, 172, 2, B);  // tripwire hook W
+	drawSingleFaceBlockImage(img, getRect(542), tiles, 172, 3, B);  // tripwire hook E
 
 	drawPartialSingleFaceBlockImage(img, getRect(100), tiles, 4, 2, B, 0.25, 0.75, 0, 1);  // wall sign facing E
 	drawPartialSingleFaceBlockImage(img, getRect(101), tiles, 4, 3, B, 0.25, 0.75, 0, 1);  // wall sign facing W
@@ -2317,46 +2590,78 @@ bool BlockImages::construct(int B, const string& terrainfile, const string& fire
 
 	drawSolidColorBlockImage(img, getRect(139), 0xd07b2748, B);  // portal
 
-	drawStairsS(img, getRect(50), tiles, 4, B);  // wood stairs asc S
-	drawStairsN(img, getRect(51), tiles, 4, B);  // wood stairs asc N
-	drawStairsW(img, getRect(52), tiles, 4, B);  // wood stairs asc W
-	drawStairsE(img, getRect(53), tiles, 4, B);  // wood stairs asc E
-	drawStairsS(img, getRect(96), tiles, 16, B);  // cobble stairs asc S
-	drawStairsN(img, getRect(97), tiles, 16, B);  // cobble stairs asc N
-	drawStairsW(img, getRect(98), tiles, 16, B);  // cobble stairs asc W
-	drawStairsE(img, getRect(99), tiles, 16, B);  // cobble stairs asc E
-	drawStairsS(img, getRect(304), tiles, 7, B);  // brick stairs asc S
-	drawStairsN(img, getRect(305), tiles, 7, B);  // brick stairs asc N
-	drawStairsW(img, getRect(306), tiles, 7, B);  // brick stairs asc W
-	drawStairsE(img, getRect(307), tiles, 7, B);  // brick stairs asc E
-	drawStairsS(img, getRect(308), tiles, 54, B);  // stone brick stairs asc S
-	drawStairsN(img, getRect(309), tiles, 54, B);  // stone brick stairs asc N
-	drawStairsW(img, getRect(310), tiles, 54, B);  // stone brick stairs asc W
-	drawStairsE(img, getRect(311), tiles, 54, B);  // stone brick stairs asc E
-	drawStairsS(img, getRect(312), tiles, 224, B);  // nether brick stairs asc S
-	drawStairsN(img, getRect(313), tiles, 224, B);  // nether brick stairs asc N
-	drawStairsW(img, getRect(314), tiles, 224, B);  // nether brick stairs asc W
-	drawStairsE(img, getRect(315), tiles, 224, B);  // nether brick stairs asc E
-	drawInvStairsS(img, getRect(438), tiles, 4, B);  // wood stairs asc S inverted
-	drawInvStairsN(img, getRect(439), tiles, 4, B);  // wood stairs asc N inverted
-	drawInvStairsW(img, getRect(440), tiles, 4, B);  // wood stairs asc W inverted
-	drawInvStairsE(img, getRect(441), tiles, 4, B);  // wood stairs asc E inverted
-	drawInvStairsS(img, getRect(442), tiles, 16, B);  // cobble stairs asc S inverted
-	drawInvStairsN(img, getRect(443), tiles, 16, B);  // cobble stairs asc N inverted
-	drawInvStairsW(img, getRect(444), tiles, 16, B);  // cobble stairs asc W inverted
-	drawInvStairsE(img, getRect(445), tiles, 16, B);  // cobble stairs asc E inverted
-	drawInvStairsS(img, getRect(446), tiles, 7, B);  // brick stairs asc S inverted
-	drawInvStairsN(img, getRect(447), tiles, 7, B);  // brick stairs asc N inverted
-	drawInvStairsW(img, getRect(448), tiles, 7, B);  // brick stairs asc W inverted
-	drawInvStairsE(img, getRect(449), tiles, 7, B);  // brick stairs asc E inverted
-	drawInvStairsS(img, getRect(450), tiles, 54, B);  // stone brick stairs asc S inverted
-	drawInvStairsN(img, getRect(451), tiles, 54, B);  // stone brick stairs asc N inverted
-	drawInvStairsW(img, getRect(452), tiles, 54, B);  // stone brick stairs asc W inverted
-	drawInvStairsE(img, getRect(453), tiles, 54, B);  // stone brick stairs asc E inverted
-	drawInvStairsS(img, getRect(454), tiles, 224, B);  // nether brick stairs asc S inverted
-	drawInvStairsN(img, getRect(455), tiles, 224, B);  // nether brick stairs asc N inverted
-	drawInvStairsW(img, getRect(456), tiles, 224, B);  // nether brick stairs asc W inverted
-	drawInvStairsE(img, getRect(457), tiles, 224, B);  // nether brick stairs asc E inverted
+	drawStairsS(img, getRect(50), tiles, 4, 4, B);  // wood stairs asc S
+	drawStairsN(img, getRect(51), tiles, 4, 4, B);  // wood stairs asc N
+	drawStairsW(img, getRect(52), tiles, 4, 4, B);  // wood stairs asc W
+	drawStairsE(img, getRect(53), tiles, 4, 4, B);  // wood stairs asc E
+	drawStairsS(img, getRect(96), tiles, 16, 16, B);  // cobble stairs asc S
+	drawStairsN(img, getRect(97), tiles, 16, 16, B);  // cobble stairs asc N
+	drawStairsW(img, getRect(98), tiles, 16, 16, B);  // cobble stairs asc W
+	drawStairsE(img, getRect(99), tiles, 16, 16, B);  // cobble stairs asc E
+	drawStairsS(img, getRect(304), tiles, 7, 7, B);  // brick stairs asc S
+	drawStairsN(img, getRect(305), tiles, 7, 7, B);  // brick stairs asc N
+	drawStairsW(img, getRect(306), tiles, 7, 7, B);  // brick stairs asc W
+	drawStairsE(img, getRect(307), tiles, 7, 7, B);  // brick stairs asc E
+	drawStairsS(img, getRect(308), tiles, 54, 54, B);  // stone brick stairs asc S
+	drawStairsN(img, getRect(309), tiles, 54, 54, B);  // stone brick stairs asc N
+	drawStairsW(img, getRect(310), tiles, 54, 54, B);  // stone brick stairs asc W
+	drawStairsE(img, getRect(311), tiles, 54, 54, B);  // stone brick stairs asc E
+	drawStairsS(img, getRect(312), tiles, 224, 224, B);  // nether brick stairs asc S
+	drawStairsN(img, getRect(313), tiles, 224, 224, B);  // nether brick stairs asc N
+	drawStairsW(img, getRect(314), tiles, 224, 224, B);  // nether brick stairs asc W
+	drawStairsE(img, getRect(315), tiles, 224, 224, B);  // nether brick stairs asc E
+	drawStairsS(img, getRect(470), tiles, 192, 176, B);  // sandstone stairs asc S
+	drawStairsN(img, getRect(471), tiles, 192, 176, B);  // sandstone stairs asc N
+	drawStairsW(img, getRect(472), tiles, 192, 176, B);  // sandstone stairs asc W
+	drawStairsE(img, getRect(473), tiles, 192, 176, B);  // sandstone stairs asc E
+	drawStairsS(img, getRect(495), tiles, 198, 198, B);  // pine stairs asc S
+	drawStairsN(img, getRect(496), tiles, 198, 198, B);  // pine stairs asc N
+	drawStairsW(img, getRect(497), tiles, 198, 198, B);  // pine stairs asc W
+	drawStairsE(img, getRect(498), tiles, 198, 198, B);  // pine stairs asc E
+	drawStairsS(img, getRect(503), tiles, 214, 214, B);  // birch stairs asc S
+	drawStairsN(img, getRect(504), tiles, 214, 214, B);  // birch stairs asc N
+	drawStairsW(img, getRect(505), tiles, 214, 214, B);  // birch stairs asc W
+	drawStairsE(img, getRect(506), tiles, 214, 214, B);  // birch stairs asc E
+	drawStairsS(img, getRect(511), tiles, 199, 199, B);  // jungle stairs asc S
+	drawStairsN(img, getRect(512), tiles, 199, 199, B);  // jungle stairs asc N
+	drawStairsW(img, getRect(513), tiles, 199, 199, B);  // jungle stairs asc W
+	drawStairsE(img, getRect(514), tiles, 199, 199, B);  // jungle stairs asc E
+	drawInvStairsS(img, getRect(438), tiles, 4, 4, B);  // wood stairs asc S inverted
+	drawInvStairsN(img, getRect(439), tiles, 4, 4, B);  // wood stairs asc N inverted
+	drawInvStairsW(img, getRect(440), tiles, 4, 4, B);  // wood stairs asc W inverted
+	drawInvStairsE(img, getRect(441), tiles, 4, 4, B);  // wood stairs asc E inverted
+	drawInvStairsS(img, getRect(442), tiles, 16, 16, B);  // cobble stairs asc S inverted
+	drawInvStairsN(img, getRect(443), tiles, 16, 16, B);  // cobble stairs asc N inverted
+	drawInvStairsW(img, getRect(444), tiles, 16, 16, B);  // cobble stairs asc W inverted
+	drawInvStairsE(img, getRect(445), tiles, 16, 16, B);  // cobble stairs asc E inverted
+	drawInvStairsS(img, getRect(446), tiles, 7, 7, B);  // brick stairs asc S inverted
+	drawInvStairsN(img, getRect(447), tiles, 7, 7, B);  // brick stairs asc N inverted
+	drawInvStairsW(img, getRect(448), tiles, 7, 7, B);  // brick stairs asc W inverted
+	drawInvStairsE(img, getRect(449), tiles, 7, 7, B);  // brick stairs asc E inverted
+	drawInvStairsS(img, getRect(450), tiles, 54, 54, B);  // stone brick stairs asc S inverted
+	drawInvStairsN(img, getRect(451), tiles, 54, 54, B);  // stone brick stairs asc N inverted
+	drawInvStairsW(img, getRect(452), tiles, 54, 54, B);  // stone brick stairs asc W inverted
+	drawInvStairsE(img, getRect(453), tiles, 54, 54, B);  // stone brick stairs asc E inverted
+	drawInvStairsS(img, getRect(454), tiles, 224, 224, B);  // nether brick stairs asc S inverted
+	drawInvStairsN(img, getRect(455), tiles, 224, 224, B);  // nether brick stairs asc N inverted
+	drawInvStairsW(img, getRect(456), tiles, 224, 224, B);  // nether brick stairs asc W inverted
+	drawInvStairsE(img, getRect(457), tiles, 224, 224, B);  // nether brick stairs asc E inverted
+	drawInvStairsS(img, getRect(474), tiles, 192, 176, B);  // sandstone stairs asc S inverted
+	drawInvStairsN(img, getRect(475), tiles, 192, 176, B);  // sandstone stairs asc N inverted
+	drawInvStairsW(img, getRect(476), tiles, 192, 176, B);  // sandstone stairs asc W inverted
+	drawInvStairsE(img, getRect(477), tiles, 192, 176, B);  // sandstone stairs asc E inverted
+	drawInvStairsS(img, getRect(499), tiles, 198, 198, B);  // pine stairs asc S inverted
+	drawInvStairsN(img, getRect(500), tiles, 198, 198, B);  // pine stairs asc N inverted
+	drawInvStairsW(img, getRect(501), tiles, 198, 198, B);  // pine stairs asc W inverted
+	drawInvStairsE(img, getRect(502), tiles, 198, 198, B);  // pine stairs asc E inverted
+	drawInvStairsS(img, getRect(507), tiles, 214, 214, B);  // birch stairs asc S inverted
+	drawInvStairsN(img, getRect(508), tiles, 214, 214, B);  // birch stairs asc N inverted
+	drawInvStairsW(img, getRect(509), tiles, 214, 214, B);  // birch stairs asc W inverted
+	drawInvStairsE(img, getRect(510), tiles, 214, 214, B);  // birch stairs asc E inverted
+	drawInvStairsS(img, getRect(515), tiles, 199, 199, B);  // jungle stairs asc S inverted
+	drawInvStairsN(img, getRect(516), tiles, 199, 199, B);  // jungle stairs asc N inverted
+	drawInvStairsW(img, getRect(517), tiles, 199, 199, B);  // jungle stairs asc W inverted
+	drawInvStairsE(img, getRect(518), tiles, 199, 199, B);  // jungle stairs asc E inverted
 
 	drawFloorBlockImage(img, getRect(55), tiles, 164, 0, B);  // redstone wire NSEW
 	drawFloorBlockImage(img, getRect(86), tiles, 128, 1, B);  // track EW

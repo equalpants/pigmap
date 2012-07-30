@@ -288,15 +288,15 @@ void checkSpecial(SceneGraphNode& node, uint16_t blockID, uint8_t blockData, con
 		GETNEIGHBOR(blockIDW, blockDataW, BlockIdx(0,1,0))
 		// if there's another chest to the N, make this a southern half
 		if (blockIDN == 54)
-			node.bimgoffset = (blockDataN == 3) ? 174 : 299;
+			node.bimgoffset = (blockDataN == 3) ? 488 : 492;
 		// ...or if there's one to the S, make this a northern half
 		else if (blockIDS == 54)
-			node.bimgoffset = (blockDataS == 3) ? 173 : 298;
+			node.bimgoffset = (blockDataS == 3) ? 487 : 491;
 		// ...same deal with E/W
 		else if (blockIDW == 54)
-			node.bimgoffset = (blockDataW == 4) ? 175 : 300;
+			node.bimgoffset = (blockDataW == 4) ? 489 : 493;
 		else if (blockIDE == 54)
-			node.bimgoffset = (blockDataE == 4) ? 176 : 301;
+			node.bimgoffset = (blockDataE == 4) ? 490 : 494;
 	}
 	else if (blockID == 95)  // locked chest
 	{
@@ -326,6 +326,17 @@ void checkSpecial(SceneGraphNode& node, uint16_t blockID, uint8_t blockData, con
 		int bits = (blockIDN != 0 ? 0x1 : 0) | (blockIDS != 0 ? 0x2 : 0) | (blockIDE != 0 ? 0x4 : 0) | (blockIDW != 0 ? 0x8 : 0);
 		static const int glassPaneOffsets[16] = {366, 423, 424, 367, 425, 368, 370, 376, 426, 369, 371, 375, 372, 374, 373, 366};
 		node.bimgoffset = glassPaneOffsets[bits];
+	}
+	else if (blockID == 132)  // tripwire
+	{
+		GETNEIGHBOR(blockIDN, blockDataN, BlockIdx(-1,0,0))
+		GETNEIGHBOR(blockIDS, blockDataS, BlockIdx(1,0,0))
+		GETNEIGHBOR(blockIDE, blockDataE, BlockIdx(0,-1,0))
+		GETNEIGHBOR(blockIDW, blockDataW, BlockIdx(0,1,0))
+		// decide which edges to draw based on which neighbors are not air (zero neighbors gets EW)
+		int bits = (blockIDN != 0 ? 0x1 : 0) | (blockIDS != 0 ? 0x2 : 0) | (blockIDE != 0 ? 0x4 : 0) | (blockIDW != 0 ? 0x8 : 0);
+		static const int tripwireOffsets[16] = {549, 544, 544, 544, 549, 545, 547, 553, 549, 546, 548, 552, 549, 551, 550, 543};
+		node.bimgoffset = tripwireOffsets[bits];
 	}
 	else if ((blockID == 104 || blockID == 105) && blockData == 7)  // full stem
 	{
@@ -559,7 +570,7 @@ bool renderTile(const TileIdx& ti, RenderJob& rj, RGBAImage& tile)
 			uint16_t blockID = chunkdata->id(pcit.current);
 			uint8_t blockData = chunkdata->data(pcit.current);
 			int initialoffset = blockimages.getOffset(blockID, blockData);  // we might use a different one after checkSpecial
-
+			
 			// if this is air, move on (we *always* consider air to be transparent; it has no block image)
 			if (blockID == 0)
 				continue;

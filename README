@@ -22,6 +22,9 @@ Michael J. Nelson, mike@thinkingpart.com ("equalpants" in Minecraft)
 The files template.html and style.css contain code from Minecraft Overviewer (copyright
 Andrew Brown and contributors).
 
+The official pigmap repository is at:
+https://github.com/equalpants/pigmap
+
 ---------------------------------------------------------------------------------------------------
 
 Supported platforms are Linux and cygwin.  OS X should also be fine, but I haven't tried it
@@ -36,6 +39,14 @@ Use supplied makefile to build with g++.
 ---------------------------------------------------------------------------------------------------
 
 Change log (important stuff only):
+
+1.2
+-new blocks up to Minecraft 1.3
+-chest.png, etc. now required
+-some speed improvements
+-block IDs >= 256 (from mods) now ignored rather than drawn as random blocks
+-memory requirements increased--should now be just a little lower than pre-Anvil
+  versions (roughly ~250-300 MB per thread)
 
 1.1.2
 -added inverted slabs
@@ -157,34 +168,38 @@ incremental update; make a copy if you need to add fancier abilities to it.
 
 c. [optional (kind of)] image path (-g)
 
-This is where pigmap expects to find either a copy of terrain.png, or a copy of blocks-B.png
-(substituting the actual numeric value of B; see below for definition of B), a pigmap-generated file
-that contains the isometric renderings of each block.  These files are not optional, but the -g
-parameter itself may be omitted, in which case "." is used as the image path.
+This is where pigmap expects to find either a copy of your tileset (terrain.png, etc.), or a copy of
+blocks-B.png (substituting the actual numeric value of B; see below for definition of B), a
+pigmap-generated file that contains the isometric renderings of each block.  These files are not
+optional, but the -g parameter itself may be omitted, in which case "." is used as the image path.
 
 Each blocks-B.png comes with a corresponding blocks-B.version, which remembers how many block images
 are stored in blocks-B.png.  (As more blocks are added to the game, the version will change.)
 
-The files fire.png and endportal.png, included with pigmap, must also be placed in the image path,
-alongside terrain.png.  (fire.png contains the image used to draw fire blocks, and endportal.png the
-image used for end portals; terrain.png does not have tiles for these.)
-
 The selection of block images works thusly:
 
--If blocks-B.png does not exist, then terrain.png will be used to create it.
--If blocks-B.png exists but has an old version, terrain.png will be used to fill in any missing
+-If blocks-B.png does not exist, then the tileset you provide will be used to create it.
+-If blocks-B.png exists but has an old version, your tileset will be used to fill in any missing
   (i.e. new) blocks, but the existing portions of blocks-B.png will be preserved.
 -If blocks-B.png exists and is up-to-date, its block images will be used.
 
-This means that pigmap will need terrain.png the first time it runs, so it can generate blocks-B.png;
+This means that pigmap will need your tileset the first time it runs, so it can generate blocks-B.png;
 subsequent runs will use the existing blocks-B.png, which can be manually edited if insufficiently
 pretty, or for special effects, etc.
 
-The textures in terrain.png (and fire.png) can be any size, as long as they remain square.
+The following images are required to generate blocks-B.png:
+-terrain.png, chest.png, largechest.png, enderchest.png: these files come from your tileset
+  or minecraft.jar
+-fire.png, endportal.png: these files are included with pigmap
+All of these must be RGBA png files (not just RGB).
+
+High-res tilesets are supported.  The textures in terrain.png, fire.png, and endportal.png can be
+any size, as long as they remain square.  The textures in the chest pngs can be scaled up, but their
+size must be an integer multiple of the original size.
 
 d. [optional] number of threads (-h)
 
-Defaults to 1.  Each thread requires around 200-300 MB of RAM (they work in different areas of the
+Defaults to 1.  Each thread requires around 250-300 MB of RAM (they work in different areas of the
 map and keep separate caches of chunk data).  Returns from extra threads may diminish quickly as the
 disk becomes a bottleneck.
 
@@ -283,6 +298,10 @@ pre-0.6 version of pigmap, your modified images can still be found at their old 
 blocks-B.png, but they must be copied to the new locations.
 
 Complete list of block image moves:
+
+--- pigmap 1.2 ---
+gravel: 21->483
+chests: 54->484, 177->485, 297->486, [173-176]->[487,490], [298-301]->[491-494]
 
 --- pigmap 1.0 ---
 beds: 232->281, 233->282, 234->283, 235->284, 236->285, 237->286, 238->287, 239->288
